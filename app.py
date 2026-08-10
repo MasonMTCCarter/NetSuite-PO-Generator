@@ -349,12 +349,14 @@ if process_clicked:
                 st.session_state.processed_df = df
                 st.success("✅ Order successfully processed!")
 
-            except json.JSONDecodeError:
+           except json.JSONDecodeError:
                 st.error("⚠️ The system had trouble reading the format. Please try clicking 'Process Order' once more.")
             except Exception as e:
                 error_msg = str(e).lower()
                 if "429" in error_msg or "quota" in error_msg or "rate limit" in error_msg:
                     st.error("⏳ Server is busy. Please wait 1 minute and click the button again.")
+                    # Add this line to see the exact API rejection message
+                    st.error(f"🔍 DEBUG (Raw API Error): {str(e)}")
                 else:
                     st.error("⚠️ Something unexpected happened. Please verify your order text or PDF and try again.")
 
