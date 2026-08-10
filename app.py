@@ -61,8 +61,8 @@ if st.button("🚀 Process Order & Generate CSV", type="primary"):
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
             try:
-                # Updated model initialization to gemini-3.6-flash
-                model = genai.GenerativeModel("gemini-3.6-flash")
+                # Updated model initialization to gemini-3.6-flash-extended
+                model = genai.GenerativeModel("gemini-3.6-flash-extended")
                 
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
@@ -76,20 +76,28 @@ if st.button("🚀 Process Order & Generate CSV", type="primary"):
                 - Custom Instructions: {custom_instructions}
                 {MAPPING_RULES}
 
+                CRITICAL VERBATIM EXTRACTION RULES:
+                1. "PR #": Copy the reference / PR # string EXACTLY as it appears in the raw source text. DO NOT truncate, cut off, trim, or cap string length under any circumstances (do not limit to 40 characters).
+                2. "Item Description": Copy the description EXACTLY word-for-word as printed in the source text. DO NOT change the casing (preserve exact original casing, do NOT apply Title Case), and DO NOT add or remove punctuation or quotes.
+
                 Return ONLY a raw JSON array where each item has keys:
                 "Line Item" (integer starting at 1),
                 "Customer/Project" (string based on mapping),
                 "Custom WBS Task" (string based on mapping),
                 "PO" (string, e.g., "{po_number}"),
-                "PR #" (string reference like 'Job 648-2...'),
+                "PR #" (string extracted EXACTLY verbatim without truncation),
                 "Manufacturer Part Number" (string),
-                "Item Description" (string),
+                "Item Description" (string extracted EXACTLY verbatim with original casing and punctuation),
                 "Qty" (integer),
                 "Cost Price" (float),
                 "Amount" (float)
                 """
 
-                response = model.generate_content(prompt)
+                # Temperature updated to 0.1
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"temperature": 0.1}
+                )
                 
                 # Parse JSON
                 clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
