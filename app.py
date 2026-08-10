@@ -5,6 +5,7 @@ import json
 import io
 import os
 import base64
+import re
 
 # ---------------------------------------------------------------------------
 # App Configuration
@@ -20,7 +21,7 @@ if "processed_df" not in st.session_state:
     st.session_state.processed_df = None
 
 # Helper: Load Logo as Base64
-LOGO_PATH = "logo.png"  
+LOGO_PATH = "logo.png"
 
 def get_base64_image(image_path: str) -> str:
     if os.path.exists(image_path):
@@ -32,9 +33,11 @@ def get_base64_image(image_path: str) -> str:
 logo_base64 = get_base64_image(LOGO_PATH)
 
 # ---------------------------------------------------------------------------
-# PR Mapping Rules Table & Python Enforcer
+# WBS Mappings: load from external JSON (wbs_mappings.json) with fallback
 # ---------------------------------------------------------------------------
-PR_MAPPINGS = {
+WBS_FILE = "wbs_mappings.json"
+
+DEFAULT_PR_MAPPINGS = {
     "648-1": {
         "Customer/Project": "JF Taylor : 648 USAF FA FuTs",
         "Custom WBS Task": "648-1 Materials",
@@ -61,6 +64,23 @@ PR_MAPPINGS = {
     },
 }
 
+def load_wbs_mappings(path: str = WBS_FILE) -> dict:
+    """Load WBS mappings from JSON file. Returns empty dict on failure."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            # Ensure keys and values are in expected shape
+            if isinstance(data, dict):
+                return data
+        except Exception as e:
+            # avoid raising during app startup; surface as a warning in UI later if needed
+            st.warning(f"Warning: could not load WBS mappings from {path}: {e}")
+    return {}
+
+_loaded_mappings = load_wbs_mappings()
+PR_MAPPINGS = _loaded_mappings if _loaded_mappings else DEFAULT_PR_MAPPINGS
+
 def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
     """Enforces WBS and Customer/Project mappings based on the final PR # value."""
     if df is None or df.empty or "PR #" not in df.columns:
@@ -70,8 +90,8 @@ def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
         pr_val = str(row.get("PR #", ""))
         for key, mapping in PR_MAPPINGS.items():
             if key in pr_val:
-                df.at[idx, "Customer/Project"] = mapping["Customer/Project"]
-                df.at[idx, "Custom WBS Task"] = mapping["Custom WBS Task"]
+                df.at[idx, "Customer/Project"] = mapping.get("Customer/Project", df.at[idx, "Customer/Project"] if "Customer/Project" in df.columns else "")
+                df.at[idx, "Custom WBS Task"] = mapping.get("Custom WBS Task", df.at[idx, "Custom WBS Task"] if "Custom WBS Task" in df.columns else "")
                 break
     return df
 
@@ -215,17 +235,11 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ---------------------------------------------------------------------------
-# Mapping Rules Text
+# Mapping Rules Text (keeps a short hint; authoritative source is wbs_mappings.json)
 # ---------------------------------------------------------------------------
 MAPPING_RULES = """
 Mappings / Rules for NetSuite Import:
-- Mappings for PR #:
-  * 648-1 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-1 Materials"
-  * 648-2 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-2 Materials"
-  * 648-3 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-3 Materials"
-  * 777   -> Customer/Project: "Newton Design, LLC : 777 Overhead", Custom WBS Task: "777 Materials"
-  * 505   -> Customer/Project: "Lockheed Martin : 505 FuT 5", Custom WBS Task: "Materials"
-  * 506   -> Customer/Project: "Lockheed Martin : 506 FuT 6", Custom WBS Task: "506 Materials"
+- WBS mappings are loaded from wbs_mappings.json (repo root).
 - Ensure Manufacturer Part Number is used (NOT vendor part numbers).
 - Exclude 'Form' and 'Vendor' columns.
 """
@@ -309,8 +323,8 @@ if process_clicked:
 
                 CRITICAL ORDER OF OPERATIONS:
                 1. Extract line items and raw "PR #" from the source document.
-                2. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648-2).
-                3. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly on the FINAL updated "PR #" value from Step 2 (e.g., if PR # was changed to 648-2, use the 648-2 customer/project and WBS task mappings).
+                2. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648[...]
+                3. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly based on the FINAL updated "PR #" value from Step 2 (e.g., if PR # was changed to 648-2, use the 648-2 cu[...]
 
                 CRITICAL VERBATIM EXTRACTION RULES:
                 1. "PR #": Copy/modify the PR # string according to custom rules, without truncation.
@@ -377,8 +391,13 @@ if st.session_state.processed_df is not None:
             st.metric(label="Total Calculated Order Value", value="N/A")
 
     # Check for unmapped PR numbers
+    # Escape keys to avoid regex problems with dashes/special chars
+    if PR_MAPPINGS:
+        pattern = "|".join(map(re.escape, PR_MAPPINGS.keys()))
+    else:
+        pattern = ""
     unmapped_rows = st.session_state.processed_df[
-        ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
+        ~(st.session_state.processed_df["PR #"].astype(str).str.contains(pattern, na=False))
     ]
     if not unmapped_rows.empty:
         st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
@@ -387,8 +406,8 @@ if st.session_state.processed_df is not None:
         st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading.")
         
         edited_df = st.data_editor(
-            st.session_state.processed_df, 
-            use_container_width=True, 
+            st.session_state.processed_df,
+            use_container_width=True,
             num_rows="dynamic",
             hide_index=True
         )
