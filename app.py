@@ -8,18 +8,18 @@ import os
 import base64
 
 # ---------------------------------------------------------------------------
-# App Configuration
+# App Configuration (Switched to Centered Layout)
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
-    layout="wide",
+    layout="centered",
     page_icon="📋",
 )
 
 # ---------------------------------------------------------------------------
 # Helper: Load Logo as Base64 (for embedded HTML rendering)
 # ---------------------------------------------------------------------------
-LOGO_PATH = "logo.png"  # Update with your local logo filename
+LOGO_PATH = "logo.png"  
 
 def get_base64_image(image_path: str) -> str:
     if os.path.exists(image_path):
@@ -31,7 +31,7 @@ def get_base64_image(image_path: str) -> str:
 logo_base64 = get_base64_image(LOGO_PATH)
 
 # ---------------------------------------------------------------------------
-# Windows 11 "Fluent Design" styling
+# Windows 11 "Fluent Design" styling + Brand Colors
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -39,15 +39,15 @@ st.markdown(
         @import url('https://fonts.cdnfonts.com/css/segoe-ui-4');
 
         :root {
-            --win-accent: #0051BA;       /* Kansas Blue */
-            --win-accent-hover: #003459; /* Night (dark navy) */
-            --win-crimson: #E8000D;      /* Crimson */
-            --win-yellow: #FFC82D;       /* Jayhawk Yellow */
-            --win-bg: #F4F6F8;
-            --win-card: #FFFFFF;
-            --win-border: #DDE5ED;       /* Steam */
-            --win-text: #1B1B1B;
-            --win-subtext: #5B6770;
+            --win-accent: #0051ba;       /* Kansas Blue */
+            --win-accent-hover: #003459; /* Night */
+            --win-crimson: #e8000d;      /* Crimson */
+            --win-yellow: #ffc82d;       /* Jayhawk Yellow */
+            --win-bg: #f4f6f8;
+            --win-card: #ffffff;
+            --win-border: #dde5ed;       /* Steam */
+            --win-text: #333333;         /* Text Gray */
+            --win-subtext: #5b6770;
             --win-radius: 8px;
         }
 
@@ -72,7 +72,7 @@ st.markdown(
             color: var(--win-text) !important;
         }
         [data-testid="stAppViewContainer"] ::placeholder {
-            color: #9A9A9A !important;
+            color: #666666 !important;
             opacity: 1 !important;
         }
 
@@ -100,7 +100,7 @@ st.markdown(
         }
         .win11-titlebar p {
             margin: 0;
-            font-size: 13px;
+            font-size: 14px;
             color: var(--win-subtext) !important;
         }
         .win11-titlebar .header-logo {
@@ -120,7 +120,7 @@ st.markdown(
 
         /* Section labels */
         .win11-section-label {
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 600;
             color: var(--win-text);
             margin-bottom: 6px;
@@ -139,29 +139,12 @@ st.markdown(
             border-radius: 6px;
             color: var(--win-text);
             box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+            font-size: 15px;
         }
         .stTextInput > div > div > input:focus,
         .stTextArea textarea:focus {
             border: 1.5px solid var(--win-accent);
             box-shadow: 0 0 0 1px var(--win-accent);
-        }
-
-        /* Radio buttons */
-        .stRadio > div {
-            gap: 4px;
-        }
-        .stRadio div[role="radiogroup"] label {
-            background: #FBFBFB;
-            border: 1px solid var(--win-border);
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-        }
-        .stRadio div[role="radiogroup"] label:has(input:checked) {
-            border: 1.5px solid var(--win-accent);
-            background: #F0F7FF;
         }
 
         /* Primary button */
@@ -170,14 +153,15 @@ st.markdown(
             color: #FFFFFF !important;
             border: none;
             border-radius: 6px;
-            padding: 0.55em 1.4em;
+            padding: 0.6em 1.4em;
             font-weight: 600;
-            font-size: 14px;
+            font-size: 16px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.15);
             transition: background 0.15s ease-in-out, transform 0.05s ease-in-out;
         }
         [data-testid="stAppViewContainer"] .stButton > button p {
             color: #FFFFFF !important;
+            font-size: 16px;
         }
         .stButton > button:hover {
             background: var(--win-accent-hover) !important;
@@ -186,45 +170,14 @@ st.markdown(
             transform: scale(0.98);
         }
 
-        /* Download button */
-        [data-testid="stAppViewContainer"] .stDownloadButton > button {
-            background: #FFFFFF !important;
-            color: var(--win-crimson) !important;
-            border: 1.5px solid var(--win-crimson);
-            border-radius: 6px;
-            font-weight: 600;
-            padding: 0.55em 1.4em;
-        }
-        [data-testid="stAppViewContainer"] .stDownloadButton > button p {
-            color: var(--win-crimson) !important;
-        }
-        .stDownloadButton > button:hover {
-            background: #FFF0F0 !important;
-        }
-
-        /* Dataframe */
-        [data-testid="stDataFrame"] {
-            border: 1px solid var(--win-border);
-            border-radius: var(--win-radius);
-            overflow: hidden;
-        }
-
-        /* Alerts */
-        div[data-testid="stAlert"] {
-            border-radius: var(--win-radius);
-            border: 1px solid var(--win-border);
-        }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background: #FBFBFB;
-            border-right: 1px solid var(--win-border);
-        }
-
-        /* Spinner text */
-        .stSpinner > div {
-            font-size: 14px;
+        /* Tabs styling */
+        button[data-baseweb="tab"] {
+            font-size: 15px;
             color: var(--win-subtext);
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: var(--win-accent);
+            font-weight: 600;
         }
     </style>
     """,
@@ -232,9 +185,9 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Title bar (Updated with Logo on the right)
+# Title bar
 # ---------------------------------------------------------------------------
-logo_html = f'<img class="header-logo" src="{logo_base64}" alt="Newton Design Logo">' if logo_base64 else ""
+logo_html = f'<img class="header-logo" src="{logo_base64}" alt="Logo">' if logo_base64 else ""
 
 st.markdown(
     f"""
@@ -278,48 +231,53 @@ Mappings / Rules for NetSuite Import:
 """
 
 # ---------------------------------------------------------------------------
-# UI Inputs
+# UI Inputs (Top-to-Bottom Flow)
 # ---------------------------------------------------------------------------
-col1, col2 = st.columns(2, gap="medium")
-
-with col1:
-    with st.container(border=True):
-        st.markdown('<div class="win11-section-label">🧾 Order Details</div>', unsafe_allow_html=True)
-        po_number = st.text_input("PO Number", value="PO1536")
-        input_method = st.radio("Input Method", ["Copy & Paste Text", "Upload PDF Invoice"])
-
-with col2:
-    with st.container(border=True):
-        st.markdown('<div class="win11-section-label">⚙️ Custom Instructions</div>', unsafe_allow_html=True)
-        custom_instructions = st.text_area(
-            "Additional rules or overrides",
-            placeholder="Add any specific rules, overrides, or notes here...",
-            height=132,
-            label_visibility="collapsed",
-        )
-
-extracted_text = ""
+with st.container(border=True):
+    st.markdown('<div class="win11-section-label">🧾 1. Order Details</div>', unsafe_allow_html=True)
+    # Removed hardcoded default value, added placeholder
+    po_number = st.text_input("PO Number", placeholder="e.g., PO1536")
 
 with st.container(border=True):
-    if input_method == "Copy & Paste Text":
-        st.markdown('<div class="win11-section-label">📋 Paste Order Raw Text</div>', unsafe_allow_html=True)
-        extracted_text = st.text_area("Paste Order Raw Text Here", height=200, label_visibility="collapsed")
-    else:
-        st.markdown('<div class="win11-section-label">📄 Upload Invoice PDF</div>', unsafe_allow_html=True)
+    st.markdown('<div class="win11-section-label">📥 2. Input Method</div>', unsafe_allow_html=True)
+    
+    # Switched to Tabs
+    tab1, tab2 = st.tabs(["📋 Copy & Paste Text", "📄 Upload PDF Invoice"])
+    
+    extracted_text = ""
+    
+    with tab1:
+        text_input = st.text_area("Paste Order Raw Text Here", height=200, label_visibility="collapsed", placeholder="Paste the raw order text here...")
+        if text_input:
+            extracted_text = text_input
+            
+    with tab2:
         uploaded_pdf = st.file_uploader("Upload Invoice PDF", type=["pdf"], label_visibility="collapsed")
         if uploaded_pdf:
             pdf_reader = pypdf.PdfReader(uploaded_pdf)
             for page in pdf_reader.pages:
                 extracted_text += page.extract_text() or ""
 
+with st.container(border=True):
+    st.markdown('<div class="win11-section-label">⚙️ 3. Custom Instructions (Optional)</div>', unsafe_allow_html=True)
+    custom_instructions = st.text_area(
+        "Additional rules or overrides",
+        placeholder="Add any specific rules, overrides, or notes here...",
+        height=100,
+        label_visibility="collapsed",
+    )
+
 st.write("")
-process_clicked = st.button("🚀  Process Order & Generate CSV", type="primary")
+# Expanded button to use container width
+process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Processing Action
 # ---------------------------------------------------------------------------
 if process_clicked:
-    if not extracted_text.strip():
+    if not po_number.strip():
+        st.error("Please enter a PO Number.")
+    elif not extracted_text.strip():
         st.error("Please provide order information via text or PDF.")
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
@@ -360,13 +318,15 @@ if process_clicked:
                     generation_config={"temperature": 0.1}
                 )
 
-                # Parse JSON
                 clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
                 data = json.loads(clean_json_str)
 
                 df = pd.DataFrame(data)
 
                 st.success("Successfully processed line items!")
+                
+                # Added metric for quick visual feedback
+                st.metric(label="Line Items Extracted", value=len(df))
 
                 # Table Preview
                 with st.container(border=True):
