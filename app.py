@@ -4,6 +4,8 @@ import google.generativeai as genai
 import pypdf
 import json
 import io
+import os
+import base64
 
 # ---------------------------------------------------------------------------
 # App Configuration
@@ -11,8 +13,22 @@ import io
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
     layout="wide",
-    page_icon="📦",
+    page_icon="📋",
 )
+
+# ---------------------------------------------------------------------------
+# Helper: Load Logo as Base64 (for embedded HTML rendering)
+# ---------------------------------------------------------------------------
+LOGO_PATH = "logo.png"  # Update with your local logo filename
+
+def get_base64_image(image_path: str) -> str:
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            encoded = base64.b64encode(img_file.read()).decode()
+            return f"data:image/png;base64,{encoded}"
+    return ""
+
+logo_base64 = get_base64_image(LOGO_PATH)
 
 # ---------------------------------------------------------------------------
 # Windows 11 "Fluent Design" styling
@@ -31,7 +47,7 @@ st.markdown(
             --win-card: #FFFFFF;
             --win-border: #DDE5ED;       /* Steam */
             --win-text: #1B1B1B;
-            --win-subtext: #5B6770;      /* darkened Signature Gray for readability */
+            --win-subtext: #5B6770;
             --win-radius: 8px;
         }
 
@@ -39,20 +55,18 @@ st.markdown(
             font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, sans-serif;
         }
 
-        /* Overall app background - subtle KU-tinted gradient */
+        /* Overall app background */
         .stApp {
             background: radial-gradient(circle at 20% 0%, #eaf1fb 0%, #f4f6f8 40%, #f4f6f8 100%);
         }
 
-        /* Hide default Streamlit chrome */
-        #MainMenu, footer {visibility: hidden;}
+        /* Hide default Streamlit chrome & viewer badges */
+        #MainMenu, footer, [data-testid="stStatusWidget"], [data-testid="stToolbar"] {
+            visibility: hidden;
+            display: none !important;
+        }
 
-        /* -------------------------------------------------------------
-           Force readable text everywhere, regardless of whether the
-           underlying Streamlit theme is set to light or dark. Without
-           this, widget labels/radio text inherit the theme's default
-           color (often white) and become invisible on our light cards.
-        ------------------------------------------------------------- */
+        /* Force readable text colors */
         [data-testid="stAppViewContainer"] * ,
         [data-testid="stSidebar"] * {
             color: var(--win-text) !important;
@@ -66,24 +80,17 @@ st.markdown(
         .win11-titlebar {
             display: flex;
             align-items: center;
-            gap: 14px;
-            padding: 18px 24px;
+            justify-content: space-between;
+            padding: 14px 24px;
             margin: -1rem -1rem 1.5rem -1rem;
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 3px solid var(--win-crimson);
         }
-        .win11-titlebar .icon-badge {
-            width: 42px;
-            height: 42px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #0051BA, #003459);
+        .win11-titlebar .title-group {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            box-shadow: 0 2px 6px rgba(0, 81, 186, 0.35);
+            flex-direction: column;
         }
         .win11-titlebar h1 {
             font-size: 22px;
@@ -96,11 +103,13 @@ st.markdown(
             font-size: 13px;
             color: var(--win-subtext) !important;
         }
-        .win11-titlebar .icon-badge {
-            color: #FFFFFF !important;
+        .win11-titlebar .header-logo {
+            height: 52px;
+            width: auto;
+            object-fit: contain;
         }
 
-        /* Card container (used for bordered st.container) */
+        /* Card container */
         div[data-testid="stVerticalBlockBorderWrapper"] {
             background: var(--win-card);
             border: 1px solid var(--win-border);
@@ -109,7 +118,7 @@ st.markdown(
             padding: 4px;
         }
 
-        /* Section labels - small crimson accent tab, like the brand page's dividers */
+        /* Section labels */
         .win11-section-label {
             font-size: 13px;
             font-weight: 600;
@@ -155,7 +164,7 @@ st.markdown(
             background: #F0F7FF;
         }
 
-        /* Primary button - Fluent accent style */
+        /* Primary button */
         [data-testid="stAppViewContainer"] .stButton > button {
             background: var(--win-accent) !important;
             color: #FFFFFF !important;
@@ -177,7 +186,7 @@ st.markdown(
             transform: scale(0.98);
         }
 
-        /* Download button - Crimson, the secondary KU brand color */
+        /* Download button */
         [data-testid="stAppViewContainer"] .stDownloadButton > button {
             background: #FFFFFF !important;
             color: var(--win-crimson) !important;
@@ -200,7 +209,7 @@ st.markdown(
             overflow: hidden;
         }
 
-        /* Alerts (success / warning / error) - rounded Fluent InfoBar look */
+        /* Alerts */
         div[data-testid="stAlert"] {
             border-radius: var(--win-radius);
             border: 1px solid var(--win-border);
@@ -223,16 +232,18 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------------
-# Title bar
+# Title bar (Updated with Logo on the right)
 # ---------------------------------------------------------------------------
+logo_html = f'<img class="header-logo" src="{logo_base64}" alt="Newton Design Logo">' if logo_base64 else ""
+
 st.markdown(
-    """
+    f"""
     <div class="win11-titlebar">
-        <div class="icon-badge">📦</div>
-        <div>
+        <div class="title-group">
             <h1>NetSuite PO &amp; Item Import Generator</h1>
             <p>Convert order text or invoices into a NetSuite-ready import file</p>
         </div>
+        {logo_html}
     </div>
     """,
     unsafe_allow_html=True,
@@ -250,7 +261,7 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ---------------------------------------------------------------------------
-# Mapping rules (unchanged logic)
+# Mapping rules
 # ---------------------------------------------------------------------------
 MAPPING_RULES = """
 Mappings / Rules for NetSuite Import:
@@ -267,7 +278,7 @@ Mappings / Rules for NetSuite Import:
 """
 
 # ---------------------------------------------------------------------------
-# UI Inputs - laid out as Fluent-style cards
+# UI Inputs
 # ---------------------------------------------------------------------------
 col1, col2 = st.columns(2, gap="medium")
 
@@ -313,7 +324,7 @@ if process_clicked:
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
             try:
-                model = genai.GenerativeModel("gemini-3.6-flash")
+                model = genai.GenerativeModel("gemini-1.5-flash")
 
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
@@ -344,7 +355,6 @@ if process_clicked:
                 "Amount" (float)
                 """
 
-                # Temperature set to 0.1
                 response = model.generate_content(
                     prompt,
                     generation_config={"temperature": 0.1}
