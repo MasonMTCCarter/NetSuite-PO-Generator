@@ -5,11 +5,208 @@ import pypdf
 import json
 import io
 
+# ---------------------------------------------------------------------------
 # App Configuration
-st.set_page_config(page_title="NetSuite PO Import Generator", layout="wide")
-st.title("📦 NetSuite PO & Item Import Generator")
+# ---------------------------------------------------------------------------
+st.set_page_config(
+    page_title="NetSuite PO Import Generator",
+    layout="wide",
+    page_icon="📦",
+)
 
-# Initialize Gemini API
+# ---------------------------------------------------------------------------
+# Windows 11 "Fluent Design" styling
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/segoe-ui-4');
+
+        :root {
+            --win-accent: #0078D4;
+            --win-accent-hover: #106EBE;
+            --win-bg: #F3F3F3;
+            --win-card: #FFFFFF;
+            --win-border: #E5E5E5;
+            --win-text: #1B1B1B;
+            --win-subtext: #616161;
+            --win-radius: 8px;
+        }
+
+        html, body, [class*="css"] {
+            font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, sans-serif;
+        }
+
+        /* Overall app background - subtle Mica-like gradient */
+        .stApp {
+            background: radial-gradient(circle at 20% 0%, #eef3fb 0%, #f3f3f3 40%, #f3f3f3 100%);
+        }
+
+        /* Hide default Streamlit chrome */
+        #MainMenu, footer {visibility: hidden;}
+
+        /* Title bar */
+        .win11-titlebar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 24px;
+            margin: -1rem -1rem 1.5rem -1rem;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--win-border);
+        }
+        .win11-titlebar .icon-badge {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #0078D4, #50A0FF);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.35);
+        }
+        .win11-titlebar h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0;
+            color: var(--win-text);
+        }
+        .win11-titlebar p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--win-subtext);
+        }
+
+        /* Card container (used for bordered st.container) */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background: var(--win-card);
+            border: 1px solid var(--win-border);
+            border-radius: var(--win-radius);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+            padding: 4px;
+        }
+
+        /* Section labels */
+        .win11-section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--win-text);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Inputs */
+        .stTextInput > div > div > input,
+        .stTextArea textarea {
+            background-color: #FBFBFB;
+            border: 1px solid var(--win-border);
+            border-radius: 6px;
+            color: var(--win-text);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .stTextInput > div > div > input:focus,
+        .stTextArea textarea:focus {
+            border: 1.5px solid var(--win-accent);
+            box-shadow: 0 0 0 1px var(--win-accent);
+        }
+
+        /* Radio buttons */
+        .stRadio > div {
+            gap: 4px;
+        }
+        .stRadio label {
+            background: #FBFBFB;
+            border: 1px solid var(--win-border);
+            padding: 6px 12px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+        }
+
+        /* Primary button - Fluent accent style */
+        .stButton > button {
+            background: var(--win-accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.55em 1.4em;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            transition: background 0.15s ease-in-out, transform 0.05s ease-in-out;
+        }
+        .stButton > button:hover {
+            background: var(--win-accent-hover);
+        }
+        .stButton > button:active {
+            transform: scale(0.98);
+        }
+
+        /* Download button */
+        .stDownloadButton > button {
+            background: #FFFFFF;
+            color: var(--win-accent);
+            border: 1.5px solid var(--win-accent);
+            border-radius: 6px;
+            font-weight: 600;
+            padding: 0.55em 1.4em;
+        }
+        .stDownloadButton > button:hover {
+            background: #F0F7FF;
+        }
+
+        /* Dataframe */
+        [data-testid="stDataFrame"] {
+            border: 1px solid var(--win-border);
+            border-radius: var(--win-radius);
+            overflow: hidden;
+        }
+
+        /* Alerts (success / warning / error) - rounded Fluent InfoBar look */
+        div[data-testid="stAlert"] {
+            border-radius: var(--win-radius);
+            border: 1px solid var(--win-border);
+        }
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {
+            background: #FBFBFB;
+            border-right: 1px solid var(--win-border);
+        }
+
+        /* Spinner text */
+        .stSpinner > div {
+            font-size: 14px;
+            color: var(--win-subtext);
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
+# Title bar
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+    <div class="win11-titlebar">
+        <div class="icon-badge">📦</div>
+        <div>
+            <h1>NetSuite PO &amp; Item Import Generator</h1>
+            <p>Convert order text or invoices into a NetSuite-ready import file</p>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
+# Gemini API key
+# ---------------------------------------------------------------------------
 api_key = st.secrets.get("GEMINI_API_KEY") or st.sidebar.text_input("Gemini API Key", type="password")
 
 if not api_key:
@@ -18,7 +215,9 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# System Prompt Template
+# ---------------------------------------------------------------------------
+# Mapping rules (unchanged logic)
+# ---------------------------------------------------------------------------
 MAPPING_RULES = """
 Mappings / Rules for NetSuite Import:
 - Mappings for PR #:
@@ -33,36 +232,55 @@ Mappings / Rules for NetSuite Import:
 - Format output strict JSON list of objects.
 """
 
-# UI Inputs
-col1, col2 = st.columns(2)
+# ---------------------------------------------------------------------------
+# UI Inputs - laid out as Fluent-style cards
+# ---------------------------------------------------------------------------
+col1, col2 = st.columns(2, gap="medium")
 
 with col1:
-    po_number = st.text_input("PO Number", value="PO1536")
-    input_method = st.radio("Input Method", ["Copy & Paste Text", "Upload PDF Invoice"])
+    with st.container(border=True):
+        st.markdown('<div class="win11-section-label">🧾 Order Details</div>', unsafe_allow_html=True)
+        po_number = st.text_input("PO Number", value="PO1536")
+        input_method = st.radio("Input Method", ["Copy & Paste Text", "Upload PDF Invoice"])
 
 with col2:
-    custom_instructions = st.text_area("Custom Instructions", placeholder="Add any specific rules, overrides, or notes here...")
+    with st.container(border=True):
+        st.markdown('<div class="win11-section-label">⚙️ Custom Instructions</div>', unsafe_allow_html=True)
+        custom_instructions = st.text_area(
+            "Additional rules or overrides",
+            placeholder="Add any specific rules, overrides, or notes here...",
+            height=132,
+            label_visibility="collapsed",
+        )
 
 extracted_text = ""
 
-if input_method == "Copy & Paste Text":
-    extracted_text = st.text_area("Paste Order Raw Text Here", height=200)
-else:
-    uploaded_pdf = st.file_uploader("Upload Invoice PDF", type=["pdf"])
-    if uploaded_pdf:
-        pdf_reader = pypdf.PdfReader(uploaded_pdf)
-        for page in pdf_reader.pages:
-            extracted_text += page.extract_text() or ""
+with st.container(border=True):
+    if input_method == "Copy & Paste Text":
+        st.markdown('<div class="win11-section-label">📋 Paste Order Raw Text</div>', unsafe_allow_html=True)
+        extracted_text = st.text_area("Paste Order Raw Text Here", height=200, label_visibility="collapsed")
+    else:
+        st.markdown('<div class="win11-section-label">📄 Upload Invoice PDF</div>', unsafe_allow_html=True)
+        uploaded_pdf = st.file_uploader("Upload Invoice PDF", type=["pdf"], label_visibility="collapsed")
+        if uploaded_pdf:
+            pdf_reader = pypdf.PdfReader(uploaded_pdf)
+            for page in pdf_reader.pages:
+                extracted_text += page.extract_text() or ""
 
+st.write("")
+process_clicked = st.button("🚀  Process Order & Generate CSV", type="primary")
+
+# ---------------------------------------------------------------------------
 # Processing Action
-if st.button("🚀 Process Order & Generate CSV", type="primary"):
+# ---------------------------------------------------------------------------
+if process_clicked:
     if not extracted_text.strip():
         st.error("Please provide order information via text or PDF.")
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
             try:
                 model = genai.GenerativeModel("gemini-3.6-flash")
-                
+
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
                 Extract line items from the following raw text and output a JSON array of objects.
@@ -97,23 +315,24 @@ if st.button("🚀 Process Order & Generate CSV", type="primary"):
                     prompt,
                     generation_config={"temperature": 0.1}
                 )
-                
+
                 # Parse JSON
                 clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
                 data = json.loads(clean_json_str)
-                
+
                 df = pd.DataFrame(data)
 
                 st.success("Successfully processed line items!")
-                
+
                 # Table Preview
-                st.subheader("Data Preview")
-                st.dataframe(df, use_container_width=True)
+                with st.container(border=True):
+                    st.markdown('<div class="win11-section-label">📊 Data Preview</div>', unsafe_allow_html=True)
+                    st.dataframe(df, use_container_width=True)
 
                 # CSV Download Button
                 csv_buffer = io.BytesIO()
                 df.to_csv(csv_buffer, index=False)
-                
+
                 st.download_button(
                     label="📥 Download NetSuite CSV",
                     data=csv_buffer.getvalue(),
