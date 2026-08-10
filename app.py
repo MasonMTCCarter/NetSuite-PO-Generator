@@ -75,6 +75,18 @@ def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
                 break
     return df
 
+def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Prevents CSV formula injection by prepending a single quote to problematic characters."""
+    if df is None or df.empty:
+        return df
+        
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].apply(
+                lambda x: f"'{x}" if isinstance(x, str) and x.startswith(("=", "+", "-", "@")) else x
+            )
+    return df
+
 # ---------------------------------------------------------------------------
 # High-Accessibility Fluent CSS
 # ---------------------------------------------------------------------------
@@ -380,6 +392,9 @@ if process_clicked:
                 # Step 2: Post-process mapping in Python to guarantee 100% compliance with final PR #
                 df = apply_pr_mappings(df)
 
+                # Step 3: Sanitize to prevent CSV formula injection
+                df = sanitize_dataframe(df)
+
                 # Save successfully processed data to session state
                 st.session_state.processed_df = df
                 st.success("✅ Order successfully processed!")
@@ -436,7 +451,9 @@ if st.session_state.processed_df is not None:
         )
 
     # Re-apply mapping dynamically in case the user edited PR # in the data editor directly
+    # and re-sanitize before the final export just in case the user manually typed a formula
     final_export_df = apply_pr_mappings(edited_df)
+    final_export_df = sanitize_dataframe(final_export_df)
 
     csv_buffer = io.BytesIO()
     final_export_df.to_csv(csv_buffer, index=False)
