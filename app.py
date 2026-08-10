@@ -76,16 +76,24 @@ def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Prevents CSV formula injection by prepending a single quote to problematic characters."""
+    """Prevents CSV formula injection by prepending a space to problematic text."""
     if df is None or df.empty:
         return df
         
-    for col in df.columns:
-        if df[col].dtype == object:
-            df[col] = df[col].apply(
-                lambda x: f"'{x}" if isinstance(x, str) and x.startswith(("=", "+", "-", "@")) else x
-            )
-    return df
+    def sanitize_cell(val):
+        # Only modify strings; ignore integers or floats (like Cost Price)
+        if isinstance(val, str):
+            cleaned_val = val.lstrip()
+            # If the string starts with a formula trigger, prepend a space
+            if cleaned_val.startswith(("=", "+", "-", "@")):
+                return f" {cleaned_val}"
+        return val
+
+    # Apply element-wise across the entire DataFrame safely
+    if hasattr(df, 'map'):
+        return df.map(sanitize_cell)
+    else:
+        return df.applymap(sanitize_cell)
 
 # ---------------------------------------------------------------------------
 # High-Accessibility Fluent CSS
