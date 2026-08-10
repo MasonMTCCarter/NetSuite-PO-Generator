@@ -267,6 +267,9 @@ with st.expander("⚙️ Special Instructions / Overrides (Optional)"):
         placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
         height=80,
     )
+    
+    # NEW DEBUG TOGGLE
+    debug_mode = st.checkbox("Debug (show raw API errors)")
 
 st.write("")
 process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
@@ -336,81 +339,4 @@ if process_clicked:
                 else:
                     response = model.generate_content(f"{prompt}\n\nOrder Info:\n{text_input}", generation_config={"temperature": 0.1})
 
-                clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json_str)
-
-                # Step 1: Parse DataFrame
-                df = pd.DataFrame(data)
-
-                # Step 2: Post-process mapping in Python to guarantee 100% compliance with final PR #
-                df = apply_pr_mappings(df)
-
-                # Save successfully processed data to session state
-                st.session_state.processed_df = df
-                st.success("✅ Order successfully processed!")
-
-           except json.JSONDecodeError:
-                st.error("⚠️ The system had trouble reading the format. Please try clicking 'Process Order' once more.")
-            except Exception as e:
-                error_msg = str(e).lower()
-                if "429" in error_msg or "quota" in error_msg or "rate limit" in error_msg:
-                    st.error("⏳ Server is busy. Please wait 1 minute and click the button again.")
-                    # Add this line to see the exact API rejection message
-                    st.error(f"🔍 DEBUG (Raw API Error): {str(e)}")
-                else:
-                    st.error("⚠️ Something unexpected happened. Please verify your order text or PDF and try again.")
-
-# ---------------------------------------------------------------------------
-# Results Display (Editable & Stateful)
-# ---------------------------------------------------------------------------
-if st.session_state.processed_df is not None:
-    st.markdown("---")
-    st.subheader("3️⃣ Step 3: Review & Download")
-
-    # Metrics Summary Bar
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="Total Line Items", value=len(st.session_state.processed_df))
-    with col2:
-        try:
-            total_val = (st.session_state.processed_df["Qty"].astype(float) * st.session_state.processed_df["Cost Price"].astype(float)).sum()
-            st.metric(label="Total Calculated Order Value", value=f"${total_val:,.2f}")
-        except Exception:
-            st.metric(label="Total Calculated Order Value", value="N/A")
-
-    # Check for unmapped PR numbers
-    unmapped_rows = st.session_state.processed_df[
-        ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
-    ]
-    if not unmapped_rows.empty:
-        st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
-
-    with st.container(border=True):
-        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading.")
-        
-        edited_df = st.data_editor(
-            st.session_state.processed_df, 
-            use_container_width=True, 
-            num_rows="dynamic",
-            hide_index=True
-        )
-
-    # Re-apply mapping dynamically in case the user edited PR # in the data editor directly
-    final_export_df = apply_pr_mappings(edited_df)
-
-    csv_buffer = io.BytesIO()
-    final_export_df.to_csv(csv_buffer, index=False)
-
-    col_dl, col_reset = st.columns([2, 1])
-    with col_dl:
-        st.download_button(
-            label="📥 Download NetSuite CSV File",
-            data=csv_buffer.getvalue(),
-            file_name=f"{po_number}_NetSuite_Import.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    with col_reset:
-        if st.button("🔄 Start Next Order", use_container_width=True):
-            st.session_state.processed_df = None
-            st.rerun()
+                clean_json_str = response.text.replace("```json", "").replace("
