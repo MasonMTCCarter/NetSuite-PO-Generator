@@ -415,12 +415,15 @@ if st.session_state.processed_df is not None:
         except Exception:
             st.metric(label="Total Calculated Order Value", value="N/A")
 
-    # Check for unmapped PR numbers
-    unmapped_rows = st.session_state.processed_df[
-        ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
-    ]
-    if not unmapped_rows.empty:
-        st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
+    # Check for unmapped PR numbers (Safely)
+    if "PR #" in st.session_state.processed_df.columns:
+        unmapped_rows = st.session_state.processed_df[
+            ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
+        ]
+        if not unmapped_rows.empty:
+            st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
+    else:
+        st.error("⚠️ The 'PR #' column is missing from the extracted data. This is likely due to a custom instruction overriding the standard format.")
 
     with st.container(border=True):
         st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading.")
