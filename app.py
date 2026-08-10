@@ -23,13 +23,15 @@ st.markdown(
         @import url('https://fonts.cdnfonts.com/css/segoe-ui-4');
 
         :root {
-            --win-accent: #0078D4;
-            --win-accent-hover: #106EBE;
-            --win-bg: #F3F3F3;
+            --win-accent: #0051BA;       /* Kansas Blue */
+            --win-accent-hover: #003459; /* Night (dark navy) */
+            --win-crimson: #E8000D;      /* Crimson */
+            --win-yellow: #FFC82D;       /* Jayhawk Yellow */
+            --win-bg: #F4F6F8;
             --win-card: #FFFFFF;
-            --win-border: #E5E5E5;
+            --win-border: #DDE5ED;       /* Steam */
             --win-text: #1B1B1B;
-            --win-subtext: #616161;
+            --win-subtext: #5B6770;      /* darkened Signature Gray for readability */
             --win-radius: 8px;
         }
 
@@ -37,13 +39,28 @@ st.markdown(
             font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, sans-serif;
         }
 
-        /* Overall app background - subtle Mica-like gradient */
+        /* Overall app background - subtle KU-tinted gradient */
         .stApp {
-            background: radial-gradient(circle at 20% 0%, #eef3fb 0%, #f3f3f3 40%, #f3f3f3 100%);
+            background: radial-gradient(circle at 20% 0%, #eaf1fb 0%, #f4f6f8 40%, #f4f6f8 100%);
         }
 
         /* Hide default Streamlit chrome */
         #MainMenu, footer {visibility: hidden;}
+
+        /* -------------------------------------------------------------
+           Force readable text everywhere, regardless of whether the
+           underlying Streamlit theme is set to light or dark. Without
+           this, widget labels/radio text inherit the theme's default
+           color (often white) and become invisible on our light cards.
+        ------------------------------------------------------------- */
+        [data-testid="stAppViewContainer"] * ,
+        [data-testid="stSidebar"] * {
+            color: var(--win-text) !important;
+        }
+        [data-testid="stAppViewContainer"] ::placeholder {
+            color: #9A9A9A !important;
+            opacity: 1 !important;
+        }
 
         /* Title bar */
         .win11-titlebar {
@@ -52,32 +69,35 @@ st.markdown(
             gap: 14px;
             padding: 18px 24px;
             margin: -1rem -1rem 1.5rem -1rem;
-            background: rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--win-border);
+            border-bottom: 3px solid var(--win-crimson);
         }
         .win11-titlebar .icon-badge {
             width: 42px;
             height: 42px;
             border-radius: 10px;
-            background: linear-gradient(135deg, #0078D4, #50A0FF);
+            background: linear-gradient(135deg, #0051BA, #003459);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 22px;
-            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.35);
+            box-shadow: 0 2px 6px rgba(0, 81, 186, 0.35);
         }
         .win11-titlebar h1 {
             font-size: 22px;
             font-weight: 600;
             margin: 0;
-            color: var(--win-text);
+            color: var(--win-text) !important;
         }
         .win11-titlebar p {
             margin: 0;
             font-size: 13px;
-            color: var(--win-subtext);
+            color: var(--win-subtext) !important;
+        }
+        .win11-titlebar .icon-badge {
+            color: #FFFFFF !important;
         }
 
         /* Card container (used for bordered st.container) */
@@ -89,7 +109,7 @@ st.markdown(
             padding: 4px;
         }
 
-        /* Section labels */
+        /* Section labels - small crimson accent tab, like the brand page's dividers */
         .win11-section-label {
             font-size: 13px;
             font-weight: 600;
@@ -98,6 +118,8 @@ st.markdown(
             display: flex;
             align-items: center;
             gap: 6px;
+            padding-left: 8px;
+            border-left: 3px solid var(--win-crimson);
         }
 
         /* Inputs */
@@ -119,18 +141,24 @@ st.markdown(
         .stRadio > div {
             gap: 4px;
         }
-        .stRadio label {
+        .stRadio div[role="radiogroup"] label {
             background: #FBFBFB;
             border: 1px solid var(--win-border);
-            padding: 6px 12px;
+            padding: 8px 12px;
             border-radius: 6px;
             margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+        }
+        .stRadio div[role="radiogroup"] label:has(input:checked) {
+            border: 1.5px solid var(--win-accent);
+            background: #F0F7FF;
         }
 
         /* Primary button - Fluent accent style */
-        .stButton > button {
-            background: var(--win-accent);
-            color: white;
+        [data-testid="stAppViewContainer"] .stButton > button {
+            background: var(--win-accent) !important;
+            color: #FFFFFF !important;
             border: none;
             border-radius: 6px;
             padding: 0.55em 1.4em;
@@ -139,24 +167,30 @@ st.markdown(
             box-shadow: 0 1px 2px rgba(0,0,0,0.15);
             transition: background 0.15s ease-in-out, transform 0.05s ease-in-out;
         }
+        [data-testid="stAppViewContainer"] .stButton > button p {
+            color: #FFFFFF !important;
+        }
         .stButton > button:hover {
-            background: var(--win-accent-hover);
+            background: var(--win-accent-hover) !important;
         }
         .stButton > button:active {
             transform: scale(0.98);
         }
 
-        /* Download button */
-        .stDownloadButton > button {
-            background: #FFFFFF;
-            color: var(--win-accent);
-            border: 1.5px solid var(--win-accent);
+        /* Download button - Crimson, the secondary KU brand color */
+        [data-testid="stAppViewContainer"] .stDownloadButton > button {
+            background: #FFFFFF !important;
+            color: var(--win-crimson) !important;
+            border: 1.5px solid var(--win-crimson);
             border-radius: 6px;
             font-weight: 600;
             padding: 0.55em 1.4em;
         }
+        [data-testid="stAppViewContainer"] .stDownloadButton > button p {
+            color: var(--win-crimson) !important;
+        }
         .stDownloadButton > button:hover {
-            background: #F0F7FF;
+            background: #FFF0F0 !important;
         }
 
         /* Dataframe */
