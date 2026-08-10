@@ -61,8 +61,7 @@ if st.button("🚀 Process Order & Generate CSV", type="primary"):
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
             try:
-                # Updated model initialization to gemini-3.6-flash-extended
-                model = genai.GenerativeModel("gemini-3.6-flash-extended")
+                model = genai.GenerativeModel("gemini-3.6-flash")
                 
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
@@ -93,7 +92,7 @@ if st.button("🚀 Process Order & Generate CSV", type="primary"):
                 "Amount" (float)
                 """
 
-                # Temperature updated to 0.1
+                # Temperature set to 0.1
                 response = model.generate_content(
                     prompt,
                     generation_config={"temperature": 0.1}
