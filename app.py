@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
-import pypdf
 import json
 import io
 import os
@@ -238,8 +237,8 @@ with st.container(border=True):
     st.markdown('<div class="win11-section-label">1️⃣ Step 1: Enter PO Number</div>', unsafe_allow_html=True)
     po_number = st.text_input("PO Number", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import.")
 
-extracted_text = ""
-is_scanned_pdf = False
+uploaded_pdf_bytes = None
+text_input = ""
 
 with st.container(border=True):
     st.markdown('<div class="win11-section-label">2️⃣ Step 2: Provide Order Info</div>', unsafe_allow_html=True)
@@ -253,22 +252,21 @@ with st.container(border=True):
     if input_type == "📄 Upload PDF Invoice":
         uploaded_pdf = st.file_uploader("Upload PDF file", type=["pdf"])
         if uploaded_pdf:
-            pdf_reader = pypdf.PdfReader(uploaded_pdf)
-            for page in pdf_reader.pages:
-                extracted_text += page.extract_text() or ""
-            
-            if not extracted_text.strip():
-                is_scanned_pdf = True
-                st.error("⚠️ This PDF appears to be a scanned image or photo. Please select 'Copy & Paste Order Text' above and paste the details manually.")
+            uploaded_pdf_bytes = uploaded_pdf.getvalue()
     else:
         text_input = st.text_area("Paste order details here:", height=180, placeholder="Paste raw order text or copy-pasted invoice content here...")
-        if text_input:
-            extracted_text = text_input
 
 with st.expander("⚙️ Special Instructions / Overrides (Optional)"):
-    custom_instructions = st.text_area(
-        "Notes or custom rules for this specific order:",
-        placeholder="e.g., Change all instances of 777 to 648-2 in the PR # field...",
+    st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
+    st.write("")
+    
+    # Preset Checkboxes
+    preset_777 = st.checkbox("Convert all instances of 777 to 648-2 in PR #")
+    preset_exclude_tax = st.checkbox("Exclude tax, freight, and shipping line items")
+    
+    custom_instructions_input = st.text_area(
+        "Additional rules or notes for this order:",
+        placeholder="Add any additional specific rules or overrides here...",
         height=80,
     )
 
@@ -283,29 +281,38 @@ if process_clicked:
     
     if not po_number.strip():
         st.warning("⚠️ Please fill in the PO Number before continuing.")
-    elif is_scanned_pdf:
-        st.error("⚠️ Unable to extract text from scanned PDF. Please paste the order text manually.")
-    elif not extracted_text.strip():
-        st.warning("⚠️ Please upload a PDF or paste order text in Step 2.")
+    elif input_type == "📄 Upload PDF Invoice" and not uploaded_pdf_bytes:
+        st.warning("⚠️ Please upload a PDF file in Step 2.")
+    elif input_type == "📋 Copy & Paste Order Text" and not text_input.strip():
+        st.warning("⚠️ Please paste the order text in Step 2.")
     else:
-        with st.spinner("⏳ Reading order details... Please wait 15 seconds to 2 minutes for processing to complete."):
+        # Build composite custom instructions from presets + text area
+        instructions_list = []
+        if preset_777:
+            instructions_list.append("Change all instances of 777 to 648-2 in the PR # field.")
+        if preset_exclude_tax:
+            instructions_list.append("Exclude any freight, shipping, tax, or non-item charge lines.")
+        if custom_instructions_input.strip():
+            instructions_list.append(custom_instructions_input.strip())
+
+        full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list) if instructions_list else "None"
+
+        with st.spinner("⏳ Analyzing order details... This usually takes about 30 seconds to 2 minutes."):
             try:
                 model = genai.GenerativeModel("gemini-3.6-flash")
 
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
-                Extract line items from the following raw text and output a JSON array of objects.
-
-                Order Info:
-                {extracted_text}
+                Extract line items from the provided document/text and output a JSON array of objects.
 
                 Context & Rules:
                 - PO Number to use for all items: {po_number}
-                - Custom Instructions: {custom_instructions}
+                - Custom Instructions:
+                {full_custom_instructions}
                 {MAPPING_RULES}
 
                 CRITICAL ORDER OF OPERATIONS:
-                1. Extract line items and raw "PR #" from the source text.
+                1. Extract line items and raw "PR #" from the source document.
                 2. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648-2).
                 3. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly on the FINAL updated "PR #" value from Step 2 (e.g., if PR # was changed to 648-2, use the 648-2 customer/project and WBS task mappings).
 
@@ -326,10 +333,12 @@ if process_clicked:
                 "Amount" (float)
                 """
 
-                response = model.generate_content(
-                    prompt,
-                    generation_config={"temperature": 0.1}
-                )
+                # Pass either raw PDF bytes or pasted text into Gemini
+                if input_type == "📄 Upload PDF Invoice" and uploaded_pdf_bytes:
+                    pdf_part = {"mime_type": "application/pdf", "data": uploaded_pdf_bytes}
+                    response = model.generate_content([prompt, pdf_part], generation_config={"temperature": 0.1})
+                else:
+                    response = model.generate_content(f"{prompt}\n\nOrder Info:\n{text_input}", generation_config={"temperature": 0.1})
 
                 clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
                 data = json.loads(clean_json_str)
@@ -351,7 +360,7 @@ if process_clicked:
                 if "429" in error_msg or "quota" in error_msg or "rate limit" in error_msg:
                     st.error("⏳ Server is busy. Please wait 1 minute and click the button again.")
                 else:
-                    st.error("⚠️ Something unexpected happened. Please verify your order text and try again.")
+                    st.error("⚠️ Something unexpected happened. Please verify your order text or PDF and try again.")
 
 # ---------------------------------------------------------------------------
 # Results Display (Editable & Stateful)
@@ -359,10 +368,27 @@ if process_clicked:
 if st.session_state.processed_df is not None:
     st.markdown("---")
     st.subheader("3️⃣ Step 3: Review & Download")
-    st.write(f"Found **{len(st.session_state.processed_df)}** items in this order.")
+
+    # Metrics Summary Bar
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="Total Line Items", value=len(st.session_state.processed_df))
+    with col2:
+        try:
+            total_val = (st.session_state.processed_df["Qty"].astype(float) * st.session_state.processed_df["Cost Price"].astype(float)).sum()
+            st.metric(label="Total Calculated Order Value", value=f"${total_val:,.2f}")
+        except Exception:
+            st.metric(label="Total Calculated Order Value", value="N/A")
+
+    # Check for unmapped PR numbers
+    unmapped_rows = st.session_state.processed_df[
+        ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
+    ]
+    if not unmapped_rows.empty:
+        st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
 
     with st.container(border=True):
-        st.markdown("💡 **Tip:** You can double-click any box below to edit values. Updating the **PR #** column will automatically recalculate Customer/Project and WBS Task.")
+        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading.")
         
         edited_df = st.data_editor(
             st.session_state.processed_df, 
@@ -377,9 +403,16 @@ if st.session_state.processed_df is not None:
     csv_buffer = io.BytesIO()
     final_export_df.to_csv(csv_buffer, index=False)
 
-    st.download_button(
-        label="📥 Download NetSuite CSV File",
-        data=csv_buffer.getvalue(),
-        file_name=f"{po_number}_NetSuite_Import.csv",
-        mime="text/csv"
-    )
+    col_dl, col_reset = st.columns([2, 1])
+    with col_dl:
+        st.download_button(
+            label="📥 Download NetSuite CSV File",
+            data=csv_buffer.getvalue(),
+            file_name=f"{po_number}_NetSuite_Import.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    with col_reset:
+        if st.button("🔄 Start Next Order", use_container_width=True):
+            st.session_state.processed_df = None
+            st.rerun()
