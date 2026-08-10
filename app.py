@@ -362,8 +362,17 @@ if process_clicked:
                             # If it's a different error type (e.g., bad request), raise immediately
                             raise api_error
 
-                clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
-                data = json.loads(clean_json_str)
+                # Updated parsing logic starts here
+                raw_text = response.text
+                start_idx = raw_text.find('[')
+                end_idx = raw_text.rfind(']')
+
+                if start_idx != -1 and end_idx != -1:
+                    clean_json_str = raw_text[start_idx:end_idx + 1]
+                    data = json.loads(clean_json_str)
+                else:
+                    # Force the error if no array is found at all
+                    raise json.JSONDecodeError("No JSON array found in response", raw_text, 0)
 
                 # Step 1: Parse DataFrame
                 df = pd.DataFrame(data)
