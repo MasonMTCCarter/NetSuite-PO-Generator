@@ -288,7 +288,7 @@ if process_clicked:
     elif not extracted_text.strip():
         st.warning("⚠️ Please upload a PDF or paste order text in Step 2.")
     else:
-        with st.spinner("⏳ Analyzing order details... Please wait standard 5-10 seconds."):
+        with st.spinner("⏳ Reading order details... Please wait 15 seconds to 2 minutes for processing to complete."):
             try:
                 model = genai.GenerativeModel("gemini-3.6-flash")
 
