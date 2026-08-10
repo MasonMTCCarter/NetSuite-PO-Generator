@@ -80,7 +80,7 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* --- Fix for the dark File Uploader --- */
+        /* --- Fix for the File Uploader --- */
         [data-testid="stFileUploadDropzone"] {
             background-color: #FBFBFB !important;
             border: 1px dashed var(--win-border) !important;
@@ -162,7 +162,9 @@ st.markdown(
             box-shadow: 0 0 0 1px var(--win-accent);
         }
 
-        [data-testid="stAppViewContainer"] .stButton > button {
+        /* --- Updated CSS for Both Regular & Download Buttons --- */
+        [data-testid="stAppViewContainer"] .stButton > button,
+        [data-testid="stAppViewContainer"] [data-testid="stDownloadButton"] > button {
             background: var(--win-accent) !important;
             color: #FFFFFF !important;
             border: none;
@@ -173,14 +175,17 @@ st.markdown(
             box-shadow: 0 1px 2px rgba(0,0,0,0.15);
             transition: background 0.15s ease-in-out, transform 0.05s ease-in-out;
         }
-        [data-testid="stAppViewContainer"] .stButton > button p {
+        [data-testid="stAppViewContainer"] .stButton > button p,
+        [data-testid="stAppViewContainer"] [data-testid="stDownloadButton"] > button p {
             color: #FFFFFF !important;
             font-size: 16px;
         }
-        .stButton > button:hover {
+        .stButton > button:hover,
+        [data-testid="stDownloadButton"] > button:hover {
             background: var(--win-accent-hover) !important;
         }
-        .stButton > button:active {
+        .stButton > button:active,
+        [data-testid="stDownloadButton"] > button:active {
             transform: scale(0.98);
         }
 
