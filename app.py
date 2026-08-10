@@ -8,13 +8,20 @@ import os
 import base64
 
 # ---------------------------------------------------------------------------
-# App Configuration (Switched to Centered Layout)
+# App Configuration
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
     layout="centered",
     page_icon="📋",
 )
+
+# ---------------------------------------------------------------------------
+# Initialize Session State
+# ---------------------------------------------------------------------------
+# This prevents the app from forgetting the data when the user clicks 'Download'
+if "processed_df" not in st.session_state:
+    st.session_state.processed_df = None
 
 # ---------------------------------------------------------------------------
 # Helper: Load Logo as Base64 (for embedded HTML rendering)
@@ -31,7 +38,7 @@ def get_base64_image(image_path: str) -> str:
 logo_base64 = get_base64_image(LOGO_PATH)
 
 # ---------------------------------------------------------------------------
-# Windows 11 "Fluent Design" styling + Brand Colors
+# Windows 11 "Fluent Design" styling + Brand Colors + Uploader Fixes
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -39,14 +46,14 @@ st.markdown(
         @import url('https://fonts.cdnfonts.com/css/segoe-ui-4');
 
         :root {
-            --win-accent: #0051ba;       /* Kansas Blue */
-            --win-accent-hover: #003459; /* Night */
-            --win-crimson: #e8000d;      /* Crimson */
-            --win-yellow: #ffc82d;       /* Jayhawk Yellow */
+            --win-accent: #0051ba;       
+            --win-accent-hover: #003459; 
+            --win-crimson: #e8000d;      
+            --win-yellow: #ffc82d;       
             --win-bg: #f4f6f8;
             --win-card: #ffffff;
-            --win-border: #dde5ed;       /* Steam */
-            --win-text: #333333;         /* Text Gray */
+            --win-border: #dde5ed;       
+            --win-text: #333333;         
             --win-subtext: #5b6770;
             --win-radius: 8px;
         }
@@ -55,18 +62,15 @@ st.markdown(
             font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, sans-serif;
         }
 
-        /* Overall app background */
         .stApp {
             background: radial-gradient(circle at 20% 0%, #eaf1fb 0%, #f4f6f8 40%, #f4f6f8 100%);
         }
 
-        /* Hide default Streamlit chrome & viewer badges */
         #MainMenu, footer, [data-testid="stStatusWidget"], [data-testid="stToolbar"] {
             visibility: hidden;
             display: none !important;
         }
 
-        /* Force readable text colors */
         [data-testid="stAppViewContainer"] * ,
         [data-testid="stSidebar"] * {
             color: var(--win-text) !important;
@@ -76,7 +80,21 @@ st.markdown(
             opacity: 1 !important;
         }
 
-        /* Title bar */
+        /* --- Fix for the dark File Uploader --- */
+        [data-testid="stFileUploadDropzone"] {
+            background-color: #FBFBFB !important;
+            border: 1px dashed var(--win-border) !important;
+        }
+        [data-testid="stFileUploadDropzone"] * {
+            color: var(--win-text) !important;
+        }
+        [data-testid="stFileUploadDropzone"] button {
+            background-color: #FFFFFF !important;
+            border: 1px solid var(--win-border) !important;
+            color: var(--win-text) !important;
+        }
+        /* -------------------------------------- */
+
         .win11-titlebar {
             display: flex;
             align-items: center;
@@ -109,7 +127,6 @@ st.markdown(
             object-fit: contain;
         }
 
-        /* Card container */
         div[data-testid="stVerticalBlockBorderWrapper"] {
             background: var(--win-card);
             border: 1px solid var(--win-border);
@@ -118,7 +135,6 @@ st.markdown(
             padding: 4px;
         }
 
-        /* Section labels */
         .win11-section-label {
             font-size: 16px;
             font-weight: 600;
@@ -131,7 +147,6 @@ st.markdown(
             border-left: 3px solid var(--win-crimson);
         }
 
-        /* Inputs */
         .stTextInput > div > div > input,
         .stTextArea textarea {
             background-color: #FBFBFB;
@@ -147,7 +162,6 @@ st.markdown(
             box-shadow: 0 0 0 1px var(--win-accent);
         }
 
-        /* Primary button */
         [data-testid="stAppViewContainer"] .stButton > button {
             background: var(--win-accent) !important;
             color: #FFFFFF !important;
@@ -170,7 +184,6 @@ st.markdown(
             transform: scale(0.98);
         }
 
-        /* Tabs styling */
         button[data-baseweb="tab"] {
             font-size: 15px;
             color: var(--win-subtext);
@@ -231,20 +244,19 @@ Mappings / Rules for NetSuite Import:
 """
 
 # ---------------------------------------------------------------------------
-# UI Inputs (Top-to-Bottom Flow)
+# UI Inputs
 # ---------------------------------------------------------------------------
 with st.container(border=True):
     st.markdown('<div class="win11-section-label">🧾 1. Order Details</div>', unsafe_allow_html=True)
-    # Removed hardcoded default value, added placeholder
     po_number = st.text_input("PO Number", placeholder="e.g., PO1536")
 
 with st.container(border=True):
     st.markdown('<div class="win11-section-label">📥 2. Input Method</div>', unsafe_allow_html=True)
     
-    # Switched to Tabs
     tab1, tab2 = st.tabs(["📋 Copy & Paste Text", "📄 Upload PDF Invoice"])
     
     extracted_text = ""
+    is_scanned_pdf = False
     
     with tab1:
         text_input = st.text_area("Paste Order Raw Text Here", height=200, label_visibility="collapsed", placeholder="Paste the raw order text here...")
@@ -257,6 +269,11 @@ with st.container(border=True):
             pdf_reader = pypdf.PdfReader(uploaded_pdf)
             for page in pdf_reader.pages:
                 extracted_text += page.extract_text() or ""
+            
+            # Check for scanned PDF (no machine-readable text)
+            if not extracted_text.strip():
+                is_scanned_pdf = True
+                st.error("⚠️ No text could be read from this PDF. If this is a scanned document or an image, please use the 'Copy & Paste Text' tab instead.")
 
 with st.container(border=True):
     st.markdown('<div class="win11-section-label">⚙️ 3. Custom Instructions (Optional)</div>', unsafe_allow_html=True)
@@ -268,15 +285,19 @@ with st.container(border=True):
     )
 
 st.write("")
-# Expanded button to use container width
 process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Processing Action
 # ---------------------------------------------------------------------------
 if process_clicked:
+    # Clear previous results if running a new order
+    st.session_state.processed_df = None
+    
     if not po_number.strip():
         st.error("Please enter a PO Number.")
+    elif is_scanned_pdf:
+        st.error("Cannot process an unreadable PDF. Please use the Copy & Paste tab.")
     elif not extracted_text.strip():
         st.error("Please provide order information via text or PDF.")
     else:
@@ -321,28 +342,44 @@ if process_clicked:
                 clean_json_str = response.text.replace("```json", "").replace("```", "").strip()
                 data = json.loads(clean_json_str)
 
-                df = pd.DataFrame(data)
-
+                # Save successfully processed data to session state
+                st.session_state.processed_df = pd.DataFrame(data)
                 st.success("Successfully processed line items!")
-                
-                # Added metric for quick visual feedback
-                st.metric(label="Line Items Extracted", value=len(df))
 
-                # Table Preview
-                with st.container(border=True):
-                    st.markdown('<div class="win11-section-label">📊 Data Preview</div>', unsafe_allow_html=True)
-                    st.dataframe(df, use_container_width=True)
-
-                # CSV Download Button
-                csv_buffer = io.BytesIO()
-                df.to_csv(csv_buffer, index=False)
-
-                st.download_button(
-                    label="📥 Download NetSuite CSV",
-                    data=csv_buffer.getvalue(),
-                    file_name=f"{po_number}_NetSuite_Import.csv",
-                    mime="text/csv"
-                )
-
+            except json.JSONDecodeError:
+                st.error("⚠️ The AI had trouble formatting this order into the correct structure. Please click 'Process Order' to try again.")
             except Exception as e:
-                st.error(f"Error processing order: {str(e)}")
+                error_msg = str(e).lower()
+                if "429" in error_msg or "quota" in error_msg or "rate limit" in error_msg:
+                    st.error("🛑 The Gemini API rate limit has been reached. Please wait a minute and try again.")
+                else:
+                    st.error(f"⚠️ An unexpected error occurred: {str(e)}\n\nPlease try again.")
+
+# ---------------------------------------------------------------------------
+# Results Display (Editable & Stateful)
+# ---------------------------------------------------------------------------
+if st.session_state.processed_df is not None:
+    st.metric(label="Line Items Extracted", value=len(st.session_state.processed_df))
+
+    with st.container(border=True):
+        st.markdown('<div class="win11-section-label">📊 Data Preview & Edit</div>', unsafe_allow_html=True)
+        st.info("💡 **Tip:** You can double-click any cell below to make manual corrections before downloading.")
+        
+        # Use data_editor instead of dataframe so changes can be made before export
+        edited_df = st.data_editor(
+            st.session_state.processed_df, 
+            use_container_width=True, 
+            num_rows="dynamic",
+            hide_index=True
+        )
+
+    # Export using the potentially edited DataFrame
+    csv_buffer = io.BytesIO()
+    edited_df.to_csv(csv_buffer, index=False)
+
+    st.download_button(
+        label="📥 Download NetSuite CSV",
+        data=csv_buffer.getvalue(),
+        file_name=f"{po_number}_NetSuite_Import.csv",
+        mime="text/csv"
+    )
