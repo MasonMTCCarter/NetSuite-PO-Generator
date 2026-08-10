@@ -260,13 +260,11 @@ with st.expander("⚙️ Special Instructions / Overrides (Optional)"):
     st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
     st.write("")
     
-    # Preset Checkboxes
-    preset_777 = st.checkbox("Convert all instances of 777 to 648-2 in PR #")
     preset_exclude_tax = st.checkbox("Exclude tax, freight, and shipping line items")
     
     custom_instructions_input = st.text_area(
         "Additional rules or notes for this order:",
-        placeholder="Add any additional specific rules or overrides here...",
+        placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
         height=80,
     )
 
@@ -288,8 +286,6 @@ if process_clicked:
     else:
         # Build composite custom instructions from presets + text area
         instructions_list = []
-        if preset_777:
-            instructions_list.append("Change all instances of 777 to 648-2 in the PR # field.")
         if preset_exclude_tax:
             instructions_list.append("Exclude any freight, shipping, tax, or non-item charge lines.")
         if custom_instructions_input.strip():
