@@ -333,6 +333,7 @@ if process_clicked:
                 CRITICAL VERBATIM EXTRACTION RULES:
                 1. "PR #": Copy/modify the PR # string according to custom rules, without truncation.
                 2. "Item Description": Copy description EXACTLY word-for-word with original casing and punctuation.
+                3. MATH EVALUATION RULE: If any field (such as Item Description, Part Number, Cost Price, Qty, or Amount) contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value (e.g., `30` or `30.0`) instead of the formula string. For cell references like `=SUM(A1:A5)`, calculate the sum of the referenced values based on the context provided.
 
                 Return ONLY a raw JSON array where each item has keys:
                 "Line Item" (integer starting at 1),
