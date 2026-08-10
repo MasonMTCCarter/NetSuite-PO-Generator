@@ -303,7 +303,8 @@ if process_clicked:
     else:
         with st.spinner("Analyzing order details and mapping NetSuite fields..."):
             try:
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # Updated to use Gemini Flash 3.6
+                model = genai.GenerativeModel("gemini-3.6-flash")
 
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
