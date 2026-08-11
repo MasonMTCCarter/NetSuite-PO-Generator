@@ -112,7 +112,7 @@ PR_MAPPINGS = {
 }
 
 def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
-    """Enforces WBS and Customer/Project mappings based on the final PR # value."""
+    """Enforces WBS and Customer/Project mappings based on the final PR # value without modifying the PR # string itself."""
     if df is None or df.empty or "PR #" not in df.columns:
         return df
 
@@ -389,12 +389,16 @@ if process_clicked:
                 CRITICAL EXTRACTION RULES:
                 1. TABLE EXCLUSIONS: Always exclude tax, freight, shipping, and handling charge lines from the line items array.
                 2. SHIPPING EXTRACTION: Extract the separate shipping/freight cost amount (if one exists on the invoice/document) as a float into the "shipping_cost" key. If no shipping cost is listed or present, set "shipping_cost" to null.
-                3. ORDER OF OPERATIONS FOR LINE ITEMS:
-                   a. Extract line items and raw "PR #" from the source document.
-                   b. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648-2).
-                   c. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly on the FINAL updated "PR #" value from Step b.
-                4. VERBATIM EXTRACTION RULES:
-                   a. "PR #": Copy/modify the PR # string according to custom rules, without truncation.
+                3. PR # VERBATIM PRESERVATION (DO NOT STRIP OR SHORTEN):
+                   - Extract and retain the FULL, EXACT string present in the PR / Job / Order reference line word-for-word.
+                   - DO NOT strip out, trim, abbreviate, or discard any text from the "PR #" field. Preserve all job names, room descriptions, notes, numbers, person names, and prefixes/suffixes (e.g., 'JOB# 670-3 - 866-7-1901 - HOG TROUGH', '670-3 / Bring to Machine Shop', '648-2 Marcus').
+                   - Never reduce the "PR #" field to just a standalone project number unless that exact number was the only text present.
+                4. ORDER OF OPERATIONS FOR LINE ITEMS:
+                   a. Extract line items and preserve the complete raw "PR #" string verbatim from the source document.
+                   b. If a replacement is explicitly instructed in "Custom Instructions", apply that replacement within the PR # text while keeping the surrounding text intact.
+                   c. Determine "Customer/Project" and "Custom WBS Task" by checking if any mapped key (from the mapping rules) is contained inside the PR # string.
+                5. VERBATIM EXTRACTION RULES:
+                   a. "PR #": Preserve 100% of the input text verbatim without shortening or omitting anything.
                    b. "Item Description": Copy description EXACTLY word-for-word with original casing and punctuation.
                    c. MATH EVALUATION RULE: If any field (such as Item Description, Part Number, Cost Price, Qty, or Amount) contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value (e.g., `30` or `30.0`) instead of the formula string. For cell references like `=SUM(A1:A5)`, calculate the sum of the referenced values based on the context provided.
 
@@ -407,7 +411,7 @@ if process_clicked:
                       "Customer/Project": <string based on mapping of FINAL PR #>,
                       "Custom WBS Task": <string based on mapping of FINAL PR #>,
                       "PO": "{po_number}",
-                      "PR #": <string>,
+                      "PR #": <string containing the full, verbatim PR # text>,
                       "Manufacturer Part Number": <string>,
                       "Item Description": <string>,
                       "Qty": <integer>,
@@ -480,7 +484,7 @@ if process_clicked:
                 # Step 1: Parse DataFrame
                 df = pd.DataFrame(items_data)
 
-                # Step 2: Post-process mapping in Python to guarantee 100% compliance with final PR #
+                # Step 2: Post-process mapping in Python to guarantee 100% compliance with PR #
                 df = apply_pr_mappings(df)
 
                 # Step 3: Sanitize to prevent CSV formula injection
