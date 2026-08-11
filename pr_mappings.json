@@ -70,5 +70,9 @@
     "777": {
         "Customer/Project": "Newton Design, LLC : 777 Overhead",
         "Custom WBS Task": "777 Materials"
+    },
+    "640": {
+        "Customer/Project": "Fluor Marine Propulsion, LLC : 640 CCS Main Panels",
+        "Custom WBS Task": "640-1 Materials"
     }
 }
