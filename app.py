@@ -49,9 +49,37 @@ PR_MAPPINGS = {
         "Customer/Project": "JF Taylor : 648 USAF FA FuTs",
         "Custom WBS Task": "648-3 Materials",
     },
-    "777": {
-        "Customer/Project": "Newton Design, LLC : 777 Overhead",
-        "Custom WBS Task": "777 Materials",
+    "670-2": {
+        "Customer/Project": "Lockheed Martin : 670 AFSOC",
+        "Custom WBS Task": "Materials (670-2)",
+    },
+    "670-3": {
+        "Customer/Project": "Lockheed Martin : 670 AFSOC",
+        "Custom WBS Task": "Materials (670-3)",
+    },
+    "611-2": {
+        "Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C",
+        "Custom WBS Task": "611-2 Materials",
+    },
+    "611-5": {
+        "Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C",
+        "Custom WBS Task": "611-5 Materials",
+    },
+    "1000": {
+        "Customer/Project": "FLETC : Diversified Fabricators & Erectors : 1000 SAACSIM",
+        "Custom WBS Task": "SAACSIM #1-2 Materials",
+    },
+    "1001": {
+        "Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3",
+        "Custom WBS Task": "0014.30.03.80 - Material",
+    },
+    "1002": {
+        "Customer/Project": "Akima/Pinnacle Solutions : 1002 - ACV MTS Production",
+        "Custom WBS Task": "1002.0001.30.03.80 - Material",
+    },
+    "Abrams Hot List": {
+        "Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3",
+        "Custom WBS Task": "0014.30.03.80 - Material",
     },
     "505": {
         "Customer/Project": "Lockheed Martin : 505 FuT 5",
@@ -61,6 +89,26 @@ PR_MAPPINGS = {
         "Customer/Project": "Lockheed Martin : 506 FuT 6",
         "Custom WBS Task": "506 Materials",
     },
+    "550": {
+        "Customer/Project": "CymSTAR, LLC : 550 C5 FuT",
+        "Custom WBS Task": "Materials",
+    },
+    "627": {
+        "Customer/Project": "CUBIC : 627 Mortar Production",
+        "Custom WBS Task": "Materials",
+    },
+    "724": {
+        "Customer/Project": "Lockheed Martin : 724 -Faceplate Assembly - 543013-103",
+        "Custom WBS Task": "Materials",
+    },
+    "725": {
+        "Customer/Project": "Leidos : 725",
+        "Custom WBS Task": "Materials",
+    },
+    "777": {
+        "Customer/Project": "Newton Design, LLC : 777 Overhead",
+        "Custom WBS Task": "777 Materials",
+    },
 }
 
 def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
@@ -69,9 +117,9 @@ def apply_pr_mappings(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     for idx, row in df.iterrows():
-        pr_val = str(row.get("PR #", ""))
+        pr_val = str(row.get("PR #", "")).lower()
         for key, mapping in PR_MAPPINGS.items():
-            if key in pr_val:
+            if key.lower() in pr_val:
                 df.at[idx, "Customer/Project"] = mapping["Customer/Project"]
                 df.at[idx, "Custom WBS Task"] = mapping["Custom WBS Task"]
                 break
@@ -242,12 +290,24 @@ genai.configure(api_key=api_key)
 MAPPING_RULES = """
 Mappings / Rules for NetSuite Import:
 - Mappings for PR #:
-  * 648-1 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-1 Materials"
-  * 648-2 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-2 Materials"
-  * 648-3 -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-3 Materials"
-  * 777   -> Customer/Project: "Newton Design, LLC : 777 Overhead", Custom WBS Task: "777 Materials"
-  * 505   -> Customer/Project: "Lockheed Martin : 505 FuT 5", Custom WBS Task: "Materials"
-  * 506   -> Customer/Project: "Lockheed Martin : 506 FuT 6", Custom WBS Task: "506 Materials"
+  * 505               -> Customer/Project: "Lockheed Martin : 505 FuT 5", Custom WBS Task: "Materials"
+  * 506               -> Customer/Project: "Lockheed Martin : 506 FuT 6", Custom WBS Task: "506 Materials"
+  * 550               -> Customer/Project: "CymSTAR, LLC : 550 C5 FuT", Custom WBS Task: "Materials"
+  * 627               -> Customer/Project: "CUBIC : 627 Mortar Production", Custom WBS Task: "Materials"
+  * 777               -> Customer/Project: "Newton Design, LLC : 777 Overhead", Custom WBS Task: "777 Materials"
+  * 1000              -> Customer/Project: "FLETC : Diversified Fabricators & Erectors : 1000 SAACSIM", Custom WBS Task: "SAACSIM #1-2 Materials"
+  * 1001              -> Customer/Project: "ADS, Inc : 1001 - M1A2 HOT SEPv3", Custom WBS Task: "0014.30.03.80 - Material"
+  * 1002              -> Customer/Project: "Akima/Pinnacle Solutions : 1002 - ACV MTS Production", Custom WBS Task: "1002.0001.30.03.80 - Material"
+  * 648-1             -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-1 Materials"
+  * 648-2             -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-2 Materials"
+  * 648-3             -> Customer/Project: "JF Taylor : 648 USAF FA FuTs", Custom WBS Task: "648-3 Materials"
+  * 670-2             -> Customer/Project: "Lockheed Martin : 670 AFSOC", Custom WBS Task: "Materials (670-2)"
+  * 670-3             -> Customer/Project: "Lockheed Martin : 670 AFSOC", Custom WBS Task: "Materials (670-3)"
+  * Abrams Hot List   -> Customer/Project: "ADS, Inc : 1001 - M1A2 HOT SEPv3", Custom WBS Task: "0014.30.03.80 - Material"
+  * 724               -> Customer/Project: "Lockheed Martin : 724 -Faceplate Assembly - 543013-103", Custom WBS Task: "Materials"
+  * 611-2             -> Customer/Project: "Fluor Marine Propulsion, LLC : 611 I&C", Custom WBS Task: "611-2 Materials"
+  * 611-5             -> Customer/Project: "Fluor Marine Propulsion, LLC : 611 I&C", Custom WBS Task: "611-5 Materials"
+  * 725               -> Customer/Project: "Leidos : 725", Custom WBS Task: "Materials"
 - Ensure Manufacturer Part Number is used (NOT vendor part numbers).
 - Exclude 'Form' and 'Vendor' columns.
 """
@@ -474,7 +534,7 @@ if st.session_state.processed_df is not None:
     # Check for unmapped PR numbers (Safely)
     if "PR #" in st.session_state.processed_df.columns:
         unmapped_rows = st.session_state.processed_df[
-            ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), na=False)
+            ~st.session_state.processed_df["PR #"].astype(str).str.contains("|".join(PR_MAPPINGS.keys()), case=False, na=False)
         ]
         if not unmapped_rows.empty:
             st.warning("⚠️ Some PR numbers were not recognized in our standard database. Please review the Customer/Project and WBS Task for those rows.")
