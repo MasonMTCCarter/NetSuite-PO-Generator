@@ -116,7 +116,6 @@ def save_pr_mappings(mappings: dict) -> bool:
     Saves mappings directly to GitHub repository via GitHub API if secrets are present.
     Also syncs to local pr_mappings.json on disk.
     """
-    # 1. Always write locally if possible
     try:
         with open(MAPPINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(mappings, f, indent=4)
@@ -125,14 +124,12 @@ def save_pr_mappings(mappings: dict) -> bool:
     except Exception:
         pass
 
-    # 2. Check for GitHub configuration in Streamlit Secrets
     token = st.secrets.get("GITHUB_TOKEN")
     repo = st.secrets.get("GITHUB_REPO")
     branch = st.secrets.get("GITHUB_BRANCH", "main")
     file_path = "pr_mappings.json"
 
     if not token or not repo:
-        # If GitHub secrets are not provided, local save is sufficient
         return True
 
     url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -143,13 +140,11 @@ def save_pr_mappings(mappings: dict) -> bool:
     }
 
     try:
-        # Step A: Get current file SHA hash (required by GitHub API to update an existing file)
         sha = None
         get_res = requests.get(url, headers=headers, params={"ref": branch})
         if get_res.status_code == 200:
             sha = get_res.json().get("sha")
 
-        # Step B: Encode JSON content to Base64
         content_str = json.dumps(mappings, indent=4)
         content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
 
@@ -161,7 +156,6 @@ def save_pr_mappings(mappings: dict) -> bool:
         if sha:
             payload["sha"] = sha
 
-        # Step C: Commit the updated file directly to GitHub
         put_res = requests.put(url, headers=headers, json=payload)
         if put_res.status_code in [200, 201]:
             return True
@@ -199,10 +193,70 @@ def get_base64_image(image_path: str) -> str:
 logo_base64 = get_base64_image(LOGO_PATH)
 
 # ---------------------------------------------------------------------------
-# PR Mapping Rules & Substring Priority Matching
+# PR Mapping Rules & Combo PR Split Enforcer
 # ---------------------------------------------------------------------------
+def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    If the PR contains '670-2/3', splits the line item into two separate rows:
+    e.g., Line 1 becomes 1A (670-2) and 1B (670-3), with Qty and Amount divided equally.
+    """
+    if df is None or df.empty:
+        return df
+
+    combo_patterns = ["670-2/3", "670-2 / 3", "670-2/ 3", "670-2 /3", "670-2 / 670-3", "670-2/670-3"]
+    new_rows = []
+
+    for orig_idx, row in df.iterrows():
+        pr_str = str(row.get("PR #", ""))
+        matched_pattern = None
+        for pattern in combo_patterns:
+            if pattern in pr_str:
+                matched_pattern = pattern
+                break
+
+        if matched_pattern:
+            try:
+                qty_val = float(row.get("Qty", 1))
+            except (ValueError, TypeError):
+                qty_val = 1.0
+
+            try:
+                cost_val = float(row.get("Cost Price", 0.0))
+            except (ValueError, TypeError):
+                cost_val = 0.0
+
+            split_qty = qty_val / 2.0
+            if split_qty.is_integer():
+                split_qty = int(split_qty)
+
+            split_amount = round(float(split_qty) * cost_val, 2)
+
+            line_base = str(row.get("Line Item", orig_idx + 1))
+            clean_digits = "".join(c for c in line_base if c.isdigit())
+            base_number = clean_digits if clean_digits else str(orig_idx + 1)
+
+            # Row A: 670-2
+            row_a = row.copy()
+            row_a["Line Item"] = f"{base_number}A"
+            row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
+            row_a["Qty"] = split_qty
+            row_a["Amount"] = split_amount
+            new_rows.append(row_a)
+
+            # Row B: 670-3
+            row_b = row.copy()
+            row_b["Line Item"] = f"{base_number}B"
+            row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
+            row_b["Qty"] = split_qty
+            row_b["Amount"] = split_amount
+            new_rows.append(row_b)
+        else:
+            new_rows.append(row)
+
+    return pd.DataFrame(new_rows).reset_index(drop=True)
+
 def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
-    """Enforces WBS and Customer/Project mappings using Substring Matching Priority (longest match first)."""
+    """Enforces WBS and Customer/Project mappings using Substring Matching Priority."""
     if df is None or df.empty or "PR #" not in df.columns:
         return df
 
@@ -221,7 +275,7 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     return df
 
 def generate_mapping_prompt_rules(mappings: dict) -> str:
-    """Generates the prompt instructions dynamically based on active mappings."""
+    """Generates prompt instructions dynamically based on active mappings."""
     rules = ["Mappings for PR #:"]
     for key, mapping in mappings.items():
         rules.append(f'  * {key} -> Customer/Project: "{mapping["Customer/Project"]}", Custom WBS Task: "{mapping["Custom WBS Task"]}"')
@@ -384,7 +438,7 @@ genai.configure(api_key=api_key)
 # Dynamic Mapping Database Manager
 # ---------------------------------------------------------------------------
 with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
-    st.markdown("Add, remove, or edit keyword mappings below. Changes will sync to `pr_mappings.json` (and GitHub repository if configured).")
+    st.markdown("Add, remove, or edit keyword mappings below. Click **Save Changes** to write them to `pr_mappings.json` and sync with GitHub.")
     
     current_map_data = [
         {"PR Keyword": k, "Customer/Project": v.get("Customer/Project", ""), "Custom WBS Task": v.get("Custom WBS Task", "")}
@@ -399,6 +453,7 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
         key=f"mappings_editor_{st.session_state.mapping_version}"
     )
     
+    st.write("")
     if st.button("💾 Save Changes to Mapping Rules", type="primary", use_container_width=True):
         new_mappings = {}
         for _, row in edited_mappings_df.iterrows():
@@ -480,7 +535,8 @@ if process_clicked:
         st.warning("⚠️ Please paste the order text in Step 2.")
     else:
         instructions_list = [
-            "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list."
+            "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list.",
+            "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them."
         ]
         if custom_instructions_input.strip():
             instructions_list.append(custom_instructions_input.strip())
@@ -503,18 +559,14 @@ if process_clicked:
                 CRITICAL EXTRACTION RULES:
                 1. TABLE EXCLUSIONS: Always exclude tax, freight, shipping, and handling charge lines from the line items array.
                 2. SHIPPING EXTRACTION: Extract the separate shipping/freight cost amount (if present) as a float into "shipping_cost". If no shipping cost is present, set "shipping_cost" to null.
-                3. PR # VERBATIM PRESERVATION (DO NOT STRIP OR SHORTEN):
-                   - Extract and retain the FULL, EXACT string present in the PR / Job / Order reference line word-for-word.
-                   - DO NOT strip out, trim, abbreviate, or discard any text from the "PR #" field. Preserve all job names, room descriptions, notes, numbers, person names, and prefixes/suffixes.
-                   - Never reduce the "PR #" field to just a standalone project number unless that exact number was the only text present.
-                4. ORDER OF OPERATIONS FOR LINE ITEMS:
-                   a. Extract line items and preserve the complete raw "PR #" string verbatim from the source document.
-                   b. If a replacement is explicitly instructed in "Custom Instructions", apply that replacement within the PR # text while keeping the surrounding text intact.
-                   c. Determine "Customer/Project" and "Custom WBS Task" by checking if any mapped key is contained inside the PR # string.
-                5. VERBATIM EXTRACTION RULES:
-                   a. "PR #": Preserve 100% of the input text verbatim without shortening or omitting anything.
-                   b. "Item Description": Copy description EXACTLY word-for-word with original casing and punctuation.
-                   c. MATH EVALUATION RULE: If any field contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value instead of the formula string.
+                3. PR # VERBATIM PRESERVATION:
+                   - Extract and retain the FULL string present in the PR / Job / Order reference line word-for-word.
+                   - DO NOT strip out or discard job names, room descriptions, notes, numbers, or prefixes/suffixes.
+                4. COMBO SPLIT RULE (670-2/3):
+                   - If the PR contains '670-2/3', create TWO line items:
+                     * Line Item A (e.g. '1A'): PR # with '670-2', half the total quantity (Qty / 2), and half the calculated amount.
+                     * Line Item B (e.g. '1B'): PR # with '670-3', half the total quantity (Qty / 2), and half the calculated amount.
+                5. MATH EVALUATION RULE: If any field contains a mathematical expression starting with '=' or containing math (e.g., `=10+20`), evaluate it and output the calculated numerical value.
                 """
 
                 extraction_schema = {
@@ -526,7 +578,7 @@ if process_clicked:
                             "items": {
                                 "type": "OBJECT",
                                 "properties": {
-                                    "Line Item": {"type": "INTEGER"},
+                                    "Line Item": {"type": "STRING"},
                                     "Customer/Project": {"type": "STRING"},
                                     "Custom WBS Task": {"type": "STRING"},
                                     "PO": {"type": "STRING"},
@@ -605,7 +657,14 @@ if process_clicked:
                 extracted_shipping = parsed_data.get("shipping_cost", None)
 
                 df = pd.DataFrame(items_data)
+
+                # Step 1: Enforce combo line item split (670-2/3 -> 1A/1B)
+                df = split_combo_pr_rows(df)
+
+                # Step 2: Apply WBS & Project mappings
                 df = apply_pr_mappings(df, st.session_state.pr_mappings)
+
+                # Step 3: Sanitize dataframe to prevent formula injection
                 df = sanitize_dataframe(df)
 
                 st.session_state.processed_df = df
