@@ -16,7 +16,9 @@ st.set_page_config(
     page_icon="📋",
 )
 
-MAPPINGS_FILE = "pr_mappings.json"
+# Explicitly locate script directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+MAPPINGS_FILE = os.path.join(SCRIPT_DIR, "pr_mappings.json")
 
 DEFAULT_MAPPINGS = {
     "648-1": {
@@ -101,15 +103,24 @@ def load_pr_mappings() -> dict:
     if os.path.exists(MAPPINGS_FILE):
         try:
             with open(MAPPINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, dict) and len(data) > 0:
+                    return data
         except Exception:
             return DEFAULT_MAPPINGS.copy()
     return DEFAULT_MAPPINGS.copy()
 
-def save_pr_mappings(mappings: dict):
-    """Saves mappings to pr_mappings.json."""
-    with open(MAPPINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(mappings, f, indent=4)
+def save_pr_mappings(mappings: dict) -> bool:
+    """Explicitly writes mappings to pr_mappings.json and flushes to disk."""
+    try:
+        with open(MAPPINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(mappings, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        return True
+    except Exception as e:
+        st.error(f"Error saving to pr_mappings.json: {e}")
+        return False
 
 # Initialize Session States
 if "processed_df" not in st.session_state:
@@ -118,11 +129,13 @@ if "shipping_cost" not in st.session_state:
     st.session_state.shipping_cost = None
 if "pr_mappings" not in st.session_state:
     st.session_state.pr_mappings = load_pr_mappings()
+if "mapping_version" not in st.session_state:
+    st.session_state.mapping_version = 0
 if "audit_history" not in st.session_state:
     st.session_state.audit_history = []
 
 # Helper: Load Logo as Base64
-LOGO_PATH = "logo.png"
+LOGO_PATH = os.path.join(SCRIPT_DIR, "logo.png")
 
 def get_base64_image(image_path: str) -> str:
     if os.path.exists(image_path):
@@ -144,7 +157,6 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     if mappings is None:
         mappings = st.session_state.get("pr_mappings", DEFAULT_MAPPINGS)
 
-    # Sort keys by length in descending order so specific keywords match before broader substrings
     sorted_keys = sorted(mappings.keys(), key=len, reverse=True)
 
     for idx, row in df.iterrows():
@@ -320,10 +332,10 @@ genai.configure(api_key=api_key)
 # Dynamic Mapping Database Manager
 # ---------------------------------------------------------------------------
 with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
-    st.markdown("Add, remove, or edit your keyword mappings below. Click **Save Changes** to store them permanently.")
+    st.markdown("Add, remove, or edit your keyword mappings below. Click **Save Changes** to write them directly to `pr_mappings.json`.")
     
     current_map_data = [
-        {"PR Keyword": k, "Customer/Project": v["Customer/Project"], "Custom WBS Task": v["Custom WBS Task"]}
+        {"PR Keyword": k, "Customer/Project": v.get("Customer/Project", ""), "Custom WBS Task": v.get("Custom WBS Task", "")}
         for k, v in st.session_state.pr_mappings.items()
     ]
     mappings_df = pd.DataFrame(current_map_data)
@@ -332,7 +344,7 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
         mappings_df,
         num_rows="dynamic",
         use_container_width=True,
-        key="mappings_editor"
+        key=f"mappings_editor_{st.session_state.mapping_version}"
     )
     
     col_save_m, col_reset_m = st.columns([1, 1])
@@ -340,22 +352,34 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
         if st.button("💾 Save Changes to Mapping Rules", use_container_width=True):
             new_mappings = {}
             for _, row in edited_mappings_df.iterrows():
-                kw = str(row.get("PR Keyword", "")).strip()
-                cp = str(row.get("Customer/Project", "")).strip()
-                wbs = str(row.get("Custom WBS Task", "")).strip()
-                if kw and cp and wbs:
-                    new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
+                kw_raw = row.get("PR Keyword")
+                cp_raw = row.get("Customer/Project")
+                wbs_raw = row.get("Custom WBS Task")
+                
+                if pd.notna(kw_raw) and pd.notna(cp_raw) and pd.notna(wbs_raw):
+                    kw = str(kw_raw).strip()
+                    cp = str(cp_raw).strip()
+                    wbs = str(wbs_raw).strip()
+                    
+                    if kw and cp and wbs and kw.lower() != "nan":
+                        new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
             
-            st.session_state.pr_mappings = new_mappings
-            save_pr_mappings(new_mappings)
-            st.success("✅ Mapping database updated and saved!")
-            st.rerun()
+            if new_mappings:
+                st.session_state.pr_mappings = new_mappings
+                success = save_pr_mappings(new_mappings)
+                if success:
+                    st.session_state.mapping_version += 1
+                    st.success("✅ Mapping database successfully updated and saved to pr_mappings.json!")
+                    st.rerun()
+            else:
+                st.error("⚠️ No valid mapping rows found to save.")
             
     with col_reset_m:
         if st.button("🔄 Reset to Default Mappings", use_container_width=True):
             st.session_state.pr_mappings = DEFAULT_MAPPINGS.copy()
             save_pr_mappings(DEFAULT_MAPPINGS)
-            st.info("Reset to standard default mapping rules.")
+            st.session_state.mapping_version += 1
+            st.info("Reset to default mapping rules.")
             st.rerun()
 
 # ---------------------------------------------------------------------------
@@ -451,7 +475,6 @@ if process_clicked:
                    c. MATH EVALUATION RULE: If any field contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value instead of the formula string.
                 """
 
-                # Define strict JSON response schema
                 extraction_schema = {
                     "type": "OBJECT",
                     "properties": {
@@ -479,7 +502,6 @@ if process_clicked:
                     "required": ["items"]
                 }
 
-                # Prepare multi-modal inputs depending on file type
                 content_payload = []
                 file_source_name = "Pasted Text"
                 
@@ -506,7 +528,6 @@ if process_clicked:
                 else:
                     content_payload = [f"{prompt}\n\nOrder Info:\n{text_input}"]
 
-                # Sequence of models with fallback
                 models_to_try = [
                     "gemini-3.6-flash",
                     "gemini-3.5-flash",
@@ -537,31 +558,22 @@ if process_clicked:
                         else:
                             raise api_error
 
-                # Parse JSON output from Gemini
                 parsed_data = json.loads(response.text)
                 items_data = parsed_data.get("items", [])
                 extracted_shipping = parsed_data.get("shipping_cost", None)
 
-                # Convert to DataFrame
                 df = pd.DataFrame(items_data)
-
-                # Apply mapping rules with Substring Matching Priority
                 df = apply_pr_mappings(df, st.session_state.pr_mappings)
-
-                # Sanitize to prevent CSV formula injection
                 df = sanitize_dataframe(df)
 
-                # Store in session state
                 st.session_state.processed_df = df
                 st.session_state.shipping_cost = extracted_shipping
 
-                # Calculate order summary for audit log
                 try:
                     total_order_val = (df["Qty"].astype(float) * df["Cost Price"].astype(float)).sum()
                 except Exception:
                     total_order_val = 0.0
 
-                # Record Audit Log Entry
                 audit_entry = {
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "PO Number": po_number,
@@ -613,7 +625,6 @@ if st.session_state.processed_df is not None:
         else:
             st.metric(label="Shipping Cost", value="None detected")
 
-    # Check for unmapped PR numbers
     if "PR #" in st.session_state.processed_df.columns:
         mapping_keys = list(st.session_state.pr_mappings.keys())
         if mapping_keys:
@@ -633,7 +644,6 @@ if st.session_state.processed_df is not None:
             hide_index=True
         )
 
-    # Re-apply mappings with priority and sanitize before final download
     final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
     final_export_df = sanitize_dataframe(final_export_df)
 
