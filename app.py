@@ -5,6 +5,7 @@ import json
 import io
 import os
 import base64
+import requests
 from datetime import datetime
 
 # ---------------------------------------------------------------------------
@@ -96,10 +97,10 @@ DEFAULT_MAPPINGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Mapping Persistence Functions
+# Mapping Persistence Functions (Local + GitHub API)
 # ---------------------------------------------------------------------------
 def load_pr_mappings() -> dict:
-    """Loads mappings from pr_mappings.json or falls back to DEFAULT_MAPPINGS."""
+    """Loads mappings from local pr_mappings.json or falls back to DEFAULT_MAPPINGS."""
     if os.path.exists(MAPPINGS_FILE):
         try:
             with open(MAPPINGS_FILE, "r", encoding="utf-8") as f:
@@ -111,15 +112,66 @@ def load_pr_mappings() -> dict:
     return DEFAULT_MAPPINGS.copy()
 
 def save_pr_mappings(mappings: dict) -> bool:
-    """Explicitly writes mappings to pr_mappings.json and flushes to disk."""
+    """
+    Saves mappings directly to GitHub repository via GitHub API if secrets are present.
+    Also syncs to local pr_mappings.json on disk.
+    """
+    # 1. Always write locally if possible
     try:
         with open(MAPPINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(mappings, f, indent=4)
             f.flush()
             os.fsync(f.fileno())
+    except Exception:
+        pass
+
+    # 2. Check for GitHub configuration in Streamlit Secrets
+    token = st.secrets.get("GITHUB_TOKEN")
+    repo = st.secrets.get("GITHUB_REPO")
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    file_path = "pr_mappings.json"
+
+    if not token or not repo:
+        # If GitHub secrets are not provided, local save is sufficient
         return True
+
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    try:
+        # Step A: Get current file SHA hash (required by GitHub API to update an existing file)
+        sha = None
+        get_res = requests.get(url, headers=headers, params={"ref": branch})
+        if get_res.status_code == 200:
+            sha = get_res.json().get("sha")
+
+        # Step B: Encode JSON content to Base64
+        content_str = json.dumps(mappings, indent=4)
+        content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
+
+        payload = {
+            "message": "Update pr_mappings.json via NetSuite App UI",
+            "content": content_b64,
+            "branch": branch,
+        }
+        if sha:
+            payload["sha"] = sha
+
+        # Step C: Commit the updated file directly to GitHub
+        put_res = requests.put(url, headers=headers, json=payload)
+        if put_res.status_code in [200, 201]:
+            return True
+        else:
+            error_details = put_res.json().get("message", "Unknown error")
+            st.error(f"GitHub API Error ({put_res.status_code}): {error_details}")
+            return False
+
     except Exception as e:
-        st.error(f"Error saving to pr_mappings.json: {e}")
+        st.error(f"Failed to commit changes to GitHub: {e}")
         return False
 
 # Initialize Session States
@@ -332,7 +384,7 @@ genai.configure(api_key=api_key)
 # Dynamic Mapping Database Manager
 # ---------------------------------------------------------------------------
 with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
-    st.markdown("Add, remove, or edit your keyword mappings below. Click **Save Changes** to write them directly to `pr_mappings.json`.")
+    st.markdown("Add, remove, or edit keyword mappings below. Changes will sync to `pr_mappings.json` (and GitHub repository if configured).")
     
     current_map_data = [
         {"PR Keyword": k, "Customer/Project": v.get("Customer/Project", ""), "Custom WBS Task": v.get("Custom WBS Task", "")}
@@ -369,10 +421,10 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
                 success = save_pr_mappings(new_mappings)
                 if success:
                     st.session_state.mapping_version += 1
-                    st.success("✅ Mapping database successfully updated and saved to pr_mappings.json!")
+                    st.success("✅ Mappings updated and synced!")
                     st.rerun()
             else:
-                st.error("⚠️ No valid mapping rows found to save.")
+                st.error("⚠️ No valid mapping rows detected to save.")
             
     with col_reset_m:
         if st.button("🔄 Reset to Default Mappings", use_container_width=True):
