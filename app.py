@@ -18,6 +18,8 @@ st.set_page_config(
 # Initialize Session State
 if "processed_df" not in st.session_state:
     st.session_state.processed_df = None
+if "shipping_cost" not in st.session_state:
+    st.session_state.shipping_cost = None
 
 # Helper: Load Logo as Base64
 LOGO_PATH = "logo.png"  
@@ -280,8 +282,6 @@ with st.expander("⚙️ Special Instructions / Overrides (Optional)"):
     st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
     st.write("")
     
-    preset_exclude_tax = st.checkbox("Exclude tax, freight, and shipping line items")
-    
     custom_instructions_input = st.text_area(
         "Additional rules or notes for this order:",
         placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
@@ -296,6 +296,7 @@ process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary",
 # ---------------------------------------------------------------------------
 if process_clicked:
     st.session_state.processed_df = None
+    st.session_state.shipping_cost = None
     
     if not po_number.strip():
         st.warning("⚠️ Please fill in the PO Number before continuing.")
@@ -304,20 +305,20 @@ if process_clicked:
     elif input_type == "📋 Copy & Paste Order Text" and not text_input.strip():
         st.warning("⚠️ Please paste the order text in Step 2.")
     else:
-        # Build composite custom instructions from presets + text area
-        instructions_list = []
-        if preset_exclude_tax:
-            instructions_list.append("Exclude any freight, shipping, tax, or non-item charge lines.")
+        # Build composite custom instructions (always excluding tax, freight, and shipping items)
+        instructions_list = [
+            "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list."
+        ]
         if custom_instructions_input.strip():
             instructions_list.append(custom_instructions_input.strip())
 
-        full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list) if instructions_list else "None"
+        full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list)
 
         with st.spinner("⏳ Analyzing order details... This usually takes about 30 seconds to 2 minutes."):
             try:
                 prompt = f"""
                 You are a data extraction assistant for NetSuite imports.
-                Extract line items from the provided document/text and output a JSON array of objects.
+                Extract line items and shipping cost from the provided document/text and output a single JSON object.
 
                 Context & Rules:
                 - PO Number to use for all items: {po_number}
@@ -325,27 +326,36 @@ if process_clicked:
                 {full_custom_instructions}
                 {MAPPING_RULES}
 
-                CRITICAL ORDER OF OPERATIONS:
-                1. Extract line items and raw "PR #" from the source document.
-                2. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648-2).
-                3. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly on the FINAL updated "PR #" value from Step 2 (e.g., if PR # was changed to 648-2, use the 648-2 customer/project and WBS task mappings).
+                CRITICAL EXTRACTION RULES:
+                1. TABLE EXCLUSIONS: Always exclude tax, freight, shipping, and handling charge lines from the line items array.
+                2. SHIPPING EXTRACTION: Extract the separate shipping/freight cost amount (if one exists on the invoice/document) as a float into the "shipping_cost" key. If no shipping cost is listed or present, set "shipping_cost" to null.
+                3. ORDER OF OPERATIONS FOR LINE ITEMS:
+                   a. Extract line items and raw "PR #" from the source document.
+                   b. STEP FIRST: Apply any overrides or replacements from "Custom Instructions" to the "PR #" field FIRST (e.g., if instructed to change 777 to 648-2, update the "PR #" field to 648-2).
+                   c. STEP LAST: Determine "Customer/Project" and "Custom WBS Task" based strictly on the FINAL updated "PR #" value from Step b.
+                4. VERBATIM EXTRACTION RULES:
+                   a. "PR #": Copy/modify the PR # string according to custom rules, without truncation.
+                   b. "Item Description": Copy description EXACTLY word-for-word with original casing and punctuation.
+                   c. MATH EVALUATION RULE: If any field (such as Item Description, Part Number, Cost Price, Qty, or Amount) contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value (e.g., `30` or `30.0`) instead of the formula string. For cell references like `=SUM(A1:A5)`, calculate the sum of the referenced values based on the context provided.
 
-                CRITICAL VERBATIM EXTRACTION RULES:
-                1. "PR #": Copy/modify the PR # string according to custom rules, without truncation.
-                2. "Item Description": Copy description EXACTLY word-for-word with original casing and punctuation.
-                3. MATH EVALUATION RULE: If any field (such as Item Description, Part Number, Cost Price, Qty, or Amount) contains a mathematical formula or expression starting with '=' or containing math (e.g., `=10+20`), evaluate the expression and output the final calculated numerical value (e.g., `30` or `30.0`) instead of the formula string. For cell references like `=SUM(A1:A5)`, calculate the sum of the referenced values based on the context provided.
-
-                Return ONLY a raw JSON array where each item has keys:
-                "Line Item" (integer starting at 1),
-                "Customer/Project" (string based on mapping of FINAL PR #),
-                "Custom WBS Task" (string based on mapping of FINAL PR #),
-                "PO" (string, e.g., "{po_number}"),
-                "PR #" (string),
-                "Manufacturer Part Number" (string),
-                "Item Description" (string),
-                "Qty" (integer),
-                "Cost Price" (float),
-                "Amount" (float)
+                Return ONLY a valid JSON object formatted as follows:
+                {{
+                  "shipping_cost": <float or null>,
+                  "items": [
+                    {{
+                      "Line Item": <integer starting at 1>,
+                      "Customer/Project": <string based on mapping of FINAL PR #>,
+                      "Custom WBS Task": <string based on mapping of FINAL PR #>,
+                      "PO": "{po_number}",
+                      "PR #": <string>,
+                      "Manufacturer Part Number": <string>,
+                      "Item Description": <string>,
+                      "Qty": <integer>,
+                      "Cost Price": <float>,
+                      "Amount": <float>
+                    }}
+                  ]
+                }}
                 """
 
                 # Define the sequence of models to try
@@ -383,20 +393,32 @@ if process_clicked:
                             # If it's a different error type (e.g., bad request), raise immediately
                             raise api_error
 
-                # Updated parsing logic starts here
-                raw_text = response.text
-                start_idx = raw_text.find('[')
-                end_idx = raw_text.rfind(']')
+                # Robust JSON response parsing
+                raw_text = response.text.strip()
+                start_obj = raw_text.find('{')
+                end_obj = raw_text.rfind('}')
+                start_arr = raw_text.find('[')
+                end_arr = raw_text.rfind(']')
 
-                if start_idx != -1 and end_idx != -1:
-                    clean_json_str = raw_text[start_idx:end_idx + 1]
-                    data = json.loads(clean_json_str)
+                items_data = []
+                extracted_shipping = None
+
+                if start_obj != -1 and end_obj != -1 and (start_arr == -1 or start_obj < start_arr):
+                    clean_json_str = raw_text[start_obj:end_obj + 1]
+                    parsed_data = json.loads(clean_json_str)
+                    if isinstance(parsed_data, dict):
+                        items_data = parsed_data.get("items", [])
+                        extracted_shipping = parsed_data.get("shipping_cost", None)
+                    elif isinstance(parsed_data, list):
+                        items_data = parsed_data
+                elif start_arr != -1 and end_arr != -1:
+                    clean_json_str = raw_text[start_arr:end_arr + 1]
+                    items_data = json.loads(clean_json_str)
                 else:
-                    # Force the error if no array is found at all
-                    raise json.JSONDecodeError("No JSON array found in response", raw_text, 0)
+                    raise json.JSONDecodeError("No JSON structure found in response", raw_text, 0)
 
                 # Step 1: Parse DataFrame
-                df = pd.DataFrame(data)
+                df = pd.DataFrame(items_data)
 
                 # Step 2: Post-process mapping in Python to guarantee 100% compliance with final PR #
                 df = apply_pr_mappings(df)
@@ -404,8 +426,9 @@ if process_clicked:
                 # Step 3: Sanitize to prevent CSV formula injection
                 df = sanitize_dataframe(df)
 
-                # Save successfully processed data to session state
+                # Save successfully processed data and shipping cost to session state
                 st.session_state.processed_df = df
+                st.session_state.shipping_cost = extracted_shipping
                 st.success("✅ Order successfully processed!")
                 
                 # Check if a fallback model was used and warn the user
@@ -428,8 +451,8 @@ if st.session_state.processed_df is not None:
     st.markdown("---")
     st.subheader("3️⃣ Step 3: Review & Download")
 
-    # Metrics Summary Bar
-    col1, col2 = st.columns(2)
+    # Metrics Summary Bar with Shipping Cost
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(label="Total Line Items", value=len(st.session_state.processed_df))
     with col2:
@@ -438,6 +461,15 @@ if st.session_state.processed_df is not None:
             st.metric(label="Total Calculated Order Value", value=f"${total_val:,.2f}")
         except Exception:
             st.metric(label="Total Calculated Order Value", value="N/A")
+    with col3:
+        shipping_val = st.session_state.get("shipping_cost")
+        if shipping_val is not None:
+            try:
+                st.metric(label="Shipping Cost", value=f"${float(shipping_val):,.2f}")
+            except (ValueError, TypeError):
+                st.metric(label="Shipping Cost", value=str(shipping_val))
+        else:
+            st.metric(label="Shipping Cost", value="None detected")
 
     # Check for unmapped PR numbers (Safely)
     if "PR #" in st.session_state.processed_df.columns:
@@ -479,4 +511,5 @@ if st.session_state.processed_df is not None:
     with col_reset:
         if st.button("🔄 Start Next Order", use_container_width=True):
             st.session_state.processed_df = None
+            st.session_state.shipping_cost = None
             st.rerun()
