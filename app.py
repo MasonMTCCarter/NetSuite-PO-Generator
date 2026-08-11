@@ -399,40 +399,30 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
         key=f"mappings_editor_{st.session_state.mapping_version}"
     )
     
-    col_save_m, col_reset_m = st.columns([1, 1])
-    with col_save_m:
-        if st.button("💾 Save Changes to Mapping Rules", use_container_width=True):
-            new_mappings = {}
-            for _, row in edited_mappings_df.iterrows():
-                kw_raw = row.get("PR Keyword")
-                cp_raw = row.get("Customer/Project")
-                wbs_raw = row.get("Custom WBS Task")
+    if st.button("💾 Save Changes to Mapping Rules", type="primary", use_container_width=True):
+        new_mappings = {}
+        for _, row in edited_mappings_df.iterrows():
+            kw_raw = row.get("PR Keyword")
+            cp_raw = row.get("Customer/Project")
+            wbs_raw = row.get("Custom WBS Task")
+            
+            if pd.notna(kw_raw) and pd.notna(cp_raw) and pd.notna(wbs_raw):
+                kw = str(kw_raw).strip()
+                cp = str(cp_raw).strip()
+                wbs = str(wbs_raw).strip()
                 
-                if pd.notna(kw_raw) and pd.notna(cp_raw) and pd.notna(wbs_raw):
-                    kw = str(kw_raw).strip()
-                    cp = str(cp_raw).strip()
-                    wbs = str(wbs_raw).strip()
-                    
-                    if kw and cp and wbs and kw.lower() != "nan":
-                        new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
-            
-            if new_mappings:
-                st.session_state.pr_mappings = new_mappings
-                success = save_pr_mappings(new_mappings)
-                if success:
-                    st.session_state.mapping_version += 1
-                    st.success("✅ Mappings updated and synced!")
-                    st.rerun()
-            else:
-                st.error("⚠️ No valid mapping rows detected to save.")
-            
-    with col_reset_m:
-        if st.button("🔄 Reset to Default Mappings", use_container_width=True):
-            st.session_state.pr_mappings = DEFAULT_MAPPINGS.copy()
-            save_pr_mappings(DEFAULT_MAPPINGS)
-            st.session_state.mapping_version += 1
-            st.info("Reset to default mapping rules.")
-            st.rerun()
+                if kw and cp and wbs and kw.lower() != "nan":
+                    new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
+        
+        if new_mappings:
+            st.session_state.pr_mappings = new_mappings
+            success = save_pr_mappings(new_mappings)
+            if success:
+                st.session_state.mapping_version += 1
+                st.success("✅ Mappings updated and synced!")
+                st.rerun()
+        else:
+            st.error("⚠️ No valid mapping rows detected to save.")
 
 # ---------------------------------------------------------------------------
 # UI Inputs
