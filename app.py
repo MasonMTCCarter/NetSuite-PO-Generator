@@ -483,8 +483,11 @@ with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
 # UI Inputs
 # ---------------------------------------------------------------------------
 with st.container(border=True):
-    st.markdown('<div class="win11-section-label">1️⃣ Step 1: Enter PO Number</div>', unsafe_allow_html=True)
+    st.markdown('<div class="win11-section-label">1️⃣ Step 1: Enter PO Details</div>', unsafe_allow_html=True)
     po_number = st.text_input("PO Number", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import.")
+    
+    # NEW: Add date selector
+    expected_date = st.date_input("Expected Date", help="Select the expected date for all items.")
 
 uploaded_file_obj = None
 text_input = ""
@@ -657,6 +660,10 @@ if process_clicked:
                 extracted_shipping = parsed_data.get("shipping_cost", None)
 
                 df = pd.DataFrame(items_data)
+
+                # NEW: Apply the selected expected date to a new column for every row
+                if expected_date:
+                    df["Expected Date"] = expected_date.strftime("%m/%d/%Y")
 
                 # Step 1: Enforce combo line item split (670-2/3 -> 1A/1B)
                 df = split_combo_pr_rows(df)
