@@ -511,6 +511,7 @@ if process_clicked:
                      * Line Item A (e.g. '1A'): PR # with '670-2', half the total quantity (Qty / 2), and half the calculated amount.
                      * Line Item B (e.g. '1B'): PR # with '670-3', half the total quantity (Qty / 2), and half the calculated amount.
                 5. MATH EVALUATION RULE: If any field contains a mathematical expression starting with '=' or containing math (e.g., `=10+20`), evaluate it and output the calculated numerical value.
+                6. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
                 """
 
                 extraction_schema = {
@@ -532,8 +533,9 @@ if process_clicked:
                                     "Qty": {"type": "NUMBER"},
                                     "Cost Price": {"type": "NUMBER"},
                                     "Amount": {"type": "NUMBER"},
+                                    "Confidence Score": {"type": "NUMBER"}
                                 },
-                                "required": ["Line Item", "PO", "PR #", "Manufacturer Part Number", "Item Description", "Qty", "Cost Price", "Amount"],
+                                "required": ["Line Item", "PO", "PR #", "Manufacturer Part Number", "Item Description", "Qty", "Cost Price", "Amount", "Confidence Score"],
                             }
                         }
                     },
@@ -683,10 +685,21 @@ if st.session_state.processed_df is not None:
                 st.warning("⚠️ Some PR numbers were not recognized in your mapping database. Please review the Customer/Project and WBS Task for those rows.")
 
     with st.container(border=True):
-        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading.")
+        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
         
+        def style_low_confidence(row):
+            try:
+                score = float(row.get("Confidence Score", 1.0))
+                if score < 0.8:
+                    return ['background-color: rgba(255, 99, 71, 0.3)'] * len(row)
+            except (ValueError, TypeError):
+                pass
+            return [''] * len(row)
+
+        styled_df = st.session_state.processed_df.style.apply(style_low_confidence, axis=1)
+
         edited_df = st.data_editor(
-            st.session_state.processed_df, 
+            styled_df, 
             use_container_width=True, 
             num_rows="dynamic",
             hide_index=True
@@ -694,6 +707,9 @@ if st.session_state.processed_df is not None:
 
     final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
     final_export_df = sanitize_dataframe(final_export_df)
+    
+    # Remove Confidence Score before downloading
+    final_export_df = final_export_df.drop(columns=["Confidence Score"], errors="ignore")
 
     csv_buffer = io.BytesIO()
     final_export_df.to_csv(csv_buffer, index=False)
