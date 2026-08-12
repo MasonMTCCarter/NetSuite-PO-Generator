@@ -301,39 +301,11 @@ def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         return df.applymap(sanitize_cell)
 
 # ---------------------------------------------------------------------------
-# High-Accessibility Fluent CSS
+# Custom CSS for Title Banner
 # ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-        @import url('https://fonts.cdnfonts.com/css/segoe-ui-4');
-
-        :root {
-            --win-accent: #0051ba;       
-            --win-accent-hover: #003459; 
-            --win-crimson: #e8000d;      
-            --win-bg: #f4f6f8;
-            --win-card: #ffffff;
-            --win-border: #cccccc;       
-            --win-text: #111111;         
-            --win-subtext: #444444;
-            --win-radius: 8px;
-        }
-
-        html, body, [class*="css"] {
-            font-family: 'Segoe UI', 'Segoe UI Variable', -apple-system, sans-serif;
-            font-size: 16px;
-        }
-
-        .stApp {
-            background: radial-gradient(circle at 20% 0%, #eaf1fb 0%, #f4f6f8 40%, #f4f6f8 100%);
-        }
-
-        #MainMenu, footer, [data-testid="stStatusWidget"], [data-testid="stToolbar"] {
-            visibility: hidden;
-            display: none !important;
-        }
-
         .win11-titlebar {
             display: flex;
             align-items: center;
@@ -341,57 +313,24 @@ st.markdown(
             padding: 16px 24px;
             margin: -1rem -1rem 1.5rem -1rem;
             background: #ffffff;
-            border-bottom: 4px solid var(--win-crimson);
+            border-bottom: 4px solid var(--primary-color, #0051ba);
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-radius: 8px;
         }
         .win11-titlebar h1 {
             font-size: 26px;
             font-weight: 700;
             margin: 0;
-            color: var(--win-text) !important;
         }
         .win11-titlebar p {
             margin: 4px 0 0 0;
             font-size: 16px;
-            color: var(--win-subtext) !important;
+            opacity: 0.8;
         }
         .win11-titlebar .header-logo {
             height: 56px;
             width: auto;
             object-fit: contain;
-        }
-
-        .win11-section-label {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--win-text);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding-left: 8px;
-            border-left: 4px solid var(--win-crimson);
-        }
-
-        .stTextInput input, .stTextArea textarea {
-            font-size: 16px !important;
-            padding: 10px !important;
-            border: 1px solid var(--win-border) !important;
-        }
-
-        [data-testid="stAppViewContainer"] .stButton > button {
-            background: var(--win-accent) !important;
-            color: #FFFFFF !important;
-            border-radius: 8px;
-            padding: 0.8em 1.5em;
-            font-size: 20px !important;
-            font-weight: 700;
-            width: 100%;
-        }
-        [data-testid="stAppViewContainer"] .stButton > button p {
-            color: #FFFFFF !important;
-            font-size: 20px !important;
-            font-weight: 700;
         }
     </style>
     """,
@@ -435,65 +374,72 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ---------------------------------------------------------------------------
-# Dynamic Mapping Database Manager
+# Sidebar Settings (Mappings & Custom Instructions)
 # ---------------------------------------------------------------------------
-with st.expander("🛠️ Manage Customer/Project & WBS Task Mappings"):
-    st.markdown("Add, remove, or edit keyword mappings below. Click **Save Changes** to write them to `pr_mappings.json` and sync with GitHub.")
+with st.sidebar:
+    st.header("⚙️ Configuration")
     
-    current_map_data = [
-        {"PR Keyword": k, "Customer/Project": v.get("Customer/Project", ""), "Custom WBS Task": v.get("Custom WBS Task", "")}
-        for k, v in st.session_state.pr_mappings.items()
-    ]
-    mappings_df = pd.DataFrame(current_map_data)
-    
-    edited_mappings_df = st.data_editor(
-        mappings_df,
-        num_rows="dynamic",
-        use_container_width=True,
-        key=f"mappings_editor_{st.session_state.mapping_version}"
-    )
-    
-    st.write("")
-    if st.button("💾 Save Changes to Mapping Rules", type="primary", use_container_width=True):
-        new_mappings = {}
-        for _, row in edited_mappings_df.iterrows():
-            kw_raw = row.get("PR Keyword")
-            cp_raw = row.get("Customer/Project")
-            wbs_raw = row.get("Custom WBS Task")
-            
-            if pd.notna(kw_raw) and pd.notna(cp_raw) and pd.notna(wbs_raw):
-                kw = str(kw_raw).strip()
-                cp = str(cp_raw).strip()
-                wbs = str(wbs_raw).strip()
-                
-                if kw and cp and wbs and kw.lower() != "nan":
-                    new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
+    with st.expander("🛠️ Manage Mappings"):
+        st.markdown("Add, remove, or edit keyword mappings. Click **Save** to sync with GitHub.")
         
-        if new_mappings:
-            st.session_state.pr_mappings = new_mappings
-            success = save_pr_mappings(new_mappings)
-            if success:
-                st.session_state.mapping_version += 1
-                st.success("✅ Mappings updated and synced!")
-                st.rerun()
-        else:
-            st.error("⚠️ No valid mapping rows detected to save.")
+        current_map_data = [
+            {"PR Keyword": k, "Customer/Project": v.get("Customer/Project", ""), "Custom WBS Task": v.get("Custom WBS Task", "")}
+            for k, v in st.session_state.pr_mappings.items()
+        ]
+        mappings_df = pd.DataFrame(current_map_data)
+        
+        edited_mappings_df = st.data_editor(
+            mappings_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"mappings_editor_{st.session_state.mapping_version}"
+        )
+        
+        if st.button("💾 Save Changes", type="primary", use_container_width=True):
+            new_mappings = {}
+            for _, row in edited_mappings_df.iterrows():
+                kw_raw = row.get("PR Keyword")
+                cp_raw = row.get("Customer/Project")
+                wbs_raw = row.get("Custom WBS Task")
+                
+                if pd.notna(kw_raw) and pd.notna(cp_raw) and pd.notna(wbs_raw):
+                    kw = str(kw_raw).strip()
+                    cp = str(cp_raw).strip()
+                    wbs = str(wbs_raw).strip()
+                    
+                    if kw and cp and wbs and kw.lower() != "nan":
+                        new_mappings[kw] = {"Customer/Project": cp, "Custom WBS Task": wbs}
+            
+            if new_mappings:
+                st.session_state.pr_mappings = new_mappings
+                success = save_pr_mappings(new_mappings)
+                if success:
+                    st.session_state.mapping_version += 1
+                    st.toast("Mappings updated and synced!", icon="✅")
+            else:
+                st.error("⚠️ No valid mapping rows detected to save.")
+                
+    with st.expander("📝 Special Instructions"):
+        st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
+        custom_instructions_input = st.text_area(
+            "Additional rules for this order:",
+            placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
+            height=80,
+        )
 
 # ---------------------------------------------------------------------------
 # UI Inputs
 # ---------------------------------------------------------------------------
 with st.container(border=True):
-    st.markdown('<div class="win11-section-label">1️⃣ Step 1: Enter PO Details</div>', unsafe_allow_html=True)
+    st.subheader("1️⃣ Step 1: Enter PO Details")
     po_number = st.text_input("PO Number", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import.")
-    
-    # NEW: Add date selector
     expected_date = st.date_input("Expected Date", help="Select the expected date for all items.")
 
 uploaded_file_obj = None
 text_input = ""
 
 with st.container(border=True):
-    st.markdown('<div class="win11-section-label">2️⃣ Step 2: Provide Order Info</div>', unsafe_allow_html=True)
+    st.subheader("2️⃣ Step 2: Provide Order Info")
     
     input_type = st.radio(
         "Choose how you want to provide order details:",
@@ -509,16 +455,6 @@ with st.container(border=True):
         )
     else:
         text_input = st.text_area("Paste order details here:", height=180, placeholder="Paste raw order text or copy-pasted invoice content here...")
-
-with st.expander("⚙️ Special Instructions / Overrides (Optional)"):
-    st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
-    st.write("")
-    
-    custom_instructions_input = st.text_area(
-        "Additional rules or notes for this order:",
-        placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
-        height=80,
-    )
 
 st.write("")
 process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
@@ -541,8 +477,13 @@ if process_clicked:
             "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list.",
             "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them."
         ]
-        if custom_instructions_input.strip():
-            instructions_list.append(custom_instructions_input.strip())
+        
+        # Ensure we capture custom instructions from sidebar safely
+        try:
+            if custom_instructions_input.strip():
+                instructions_list.append(custom_instructions_input.strip())
+        except NameError:
+            pass
 
         full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list)
         mapping_rules_text = generate_mapping_prompt_rules(st.session_state.pr_mappings)
@@ -661,7 +602,6 @@ if process_clicked:
 
                 df = pd.DataFrame(items_data)
 
-                # NEW: Apply the selected expected date to a new column for every row
                 if expected_date:
                     df["Expected Date"] = expected_date.strftime("%m/%d/%Y")
 
@@ -693,10 +633,10 @@ if process_clicked:
                 }
                 st.session_state.audit_history.insert(0, audit_entry)
 
-                st.success("✅ Order successfully processed!")
+                st.toast("Order successfully processed!", icon="✅")
                 
                 if attempt > 0:
-                    st.warning(f"⚠️ **Notice:** A backup AI model ({model_name}) was used. Please review results carefully.")
+                    st.toast(f"Notice: A backup AI model ({model_name}) was used.", icon="⚠️")
 
             except json.JSONDecodeError:
                 st.error("⚠️ The system had trouble formatting the output. Please click 'Process Order' once more.")
