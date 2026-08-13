@@ -1,6 +1,10 @@
 import streamlit as st
 import pandas as pd
 import google.generativeai as genai
+from google.api_core import exceptions as google_exceptions
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from pydantic import BaseModel, Field, ValidationError
+from typing import List, Optional
 import json
 import io
 import os
@@ -9,7 +13,7 @@ import requests
 from datetime import datetime
 
 # ---------------------------------------------------------------------------
-# App Configuration
+# App Configuration & Setup
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
@@ -17,90 +21,73 @@ st.set_page_config(
     page_icon="📋",
 )
 
-# Explicitly locate script directory
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MAPPINGS_FILE = os.path.join(SCRIPT_DIR, "pr_mappings.json")
 
 DEFAULT_MAPPINGS = {
-    "648-1": {
-        "Customer/Project": "JF Taylor : 648 USAF FA FuTs",
-        "Custom WBS Task": "648-1 Materials",
-    },
-    "648-2": {
-        "Customer/Project": "JF Taylor : 648 USAF FA FuTs",
-        "Custom WBS Task": "648-2 Materials",
-    },
-    "648-3": {
-        "Customer/Project": "JF Taylor : 648 USAF FA FuTs",
-        "Custom WBS Task": "648-3 Materials",
-    },
-    "670-2": {
-        "Customer/Project": "Lockheed Martin : 670 AFSOC",
-        "Custom WBS Task": "Materials (670-2)",
-    },
-    "670-3": {
-        "Customer/Project": "Lockheed Martin : 670 AFSOC",
-        "Custom WBS Task": "Materials (670-3)",
-    },
-    "611-2": {
-        "Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C",
-        "Custom WBS Task": "611-2 Materials",
-    },
-    "611-5": {
-        "Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C",
-        "Custom WBS Task": "611-5 Materials",
-    },
-    "1000": {
-        "Customer/Project": "FLETC : Diversified Fabricators & Erectors : 1000 SAACSIM",
-        "Custom WBS Task": "SAACSIM #1-2 Materials",
-    },
-    "1001": {
-        "Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3",
-        "Custom WBS Task": "0014.30.03.80 - Material",
-    },
-    "1002": {
-        "Customer/Project": "Akima/Pinnacle Solutions : 1002 - ACV MTS Production",
-        "Custom WBS Task": "1002.0001.30.03.80 - Material",
-    },
-    "Abrams Hot List": {
-        "Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3",
-        "Custom WBS Task": "0014.30.03.80 - Material",
-    },
-    "505": {
-        "Customer/Project": "Lockheed Martin : 505 FuT 5",
-        "Custom WBS Task": "Materials",
-    },
-    "506": {
-        "Customer/Project": "Lockheed Martin : 506 FuT 6",
-        "Custom WBS Task": "506 Materials",
-    },
-    "550": {
-        "Customer/Project": "CymSTAR, LLC : 550 C5 FuT",
-        "Custom WBS Task": "Materials",
-    },
-    "627": {
-        "Customer/Project": "CUBIC : 627 Mortar Production",
-        "Custom WBS Task": "Materials",
-    },
-    "724": {
-        "Customer/Project": "Lockheed Martin : 724 -Faceplate Assembly - 543013-103",
-        "Custom WBS Task": "Materials",
-    },
-    "725": {
-        "Customer/Project": "Leidos : 725",
-        "Custom WBS Task": "Materials",
-    },
-    "777": {
-        "Customer/Project": "Newton Design, LLC : 777 Overhead",
-        "Custom WBS Task": "777 Materials",
-    },
+    "648-1": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-1 Materials"},
+    "648-2": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-2 Materials"},
+    "648-3": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-3 Materials"},
+    "670-2": {"Customer/Project": "Lockheed Martin : 670 AFSOC", "Custom WBS Task": "Materials (670-2)"},
+    "670-3": {"Customer/Project": "Lockheed Martin : 670 AFSOC", "Custom WBS Task": "Materials (670-3)"},
+    "611-2": {"Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C", "Custom WBS Task": "611-2 Materials"},
+    "611-5": {"Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C", "Custom WBS Task": "611-5 Materials"},
+    "1000": {"Customer/Project": "FLETC : Diversified Fabricators & Erectors : 1000 SAACSIM", "Custom WBS Task": "SAACSIM #1-2 Materials"},
+    "1001": {"Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3", "Custom WBS Task": "0014.30.03.80 - Material"},
+    "1002": {"Customer/Project": "Akima/Pinnacle Solutions : 1002 - ACV MTS Production", "Custom WBS Task": "1002.0001.30.03.80 - Material"},
+    "Abrams Hot List": {"Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3", "Custom WBS Task": "0014.30.03.80 - Material"},
+    "505": {"Customer/Project": "Lockheed Martin : 505 FuT 5", "Custom WBS Task": "Materials"},
+    "506": {"Customer/Project": "Lockheed Martin : 506 FuT 6", "Custom WBS Task": "506 Materials"},
+    "550": {"Customer/Project": "CymSTAR, LLC : 550 C5 FuT", "Custom WBS Task": "Materials"},
+    "627": {"Customer/Project": "CUBIC : 627 Mortar Production", "Custom WBS Task": "Materials"},
+    "724": {"Customer/Project": "Lockheed Martin : 724 -Faceplate Assembly - 543013-103", "Custom WBS Task": "Materials"},
+    "725": {"Customer/Project": "Leidos : 725", "Custom WBS Task": "Materials"},
+    "777": {"Customer/Project": "Newton Design, LLC : 777 Overhead", "Custom WBS Task": "777 Materials"},
 }
 
 # ---------------------------------------------------------------------------
-# Mapping Persistence Functions (Local + GitHub API)
+# Pydantic Schemas for AI Output Validation
 # ---------------------------------------------------------------------------
+class LineItem(BaseModel):
+    Line_Item: str = Field(alias="Line Item", default="")
+    Customer_Project: str = Field(alias="Customer/Project", default="")
+    Custom_WBS_Task: str = Field(alias="Custom WBS Task", default="")
+    PO: str = Field(default="")
+    PR_Num: str = Field(alias="PR #", default="")
+    Manufacturer_Part_Number: str = Field(alias="Manufacturer Part Number", default="")
+    Item_Description: str = Field(alias="Item Description", default="")
+    Qty: float = 1.0
+    Cost_Price: float = Field(alias="Cost Price", default=0.0)
+    Amount: float = 0.0
+    Confidence_Score: float = Field(alias="Confidence Score", default=1.0)
+
+class OrderOutput(BaseModel):
+    shipping_cost: Optional[float] = None
+    items: List[LineItem] = []
+
+# ---------------------------------------------------------------------------
+# State Management & Helpers
+# ---------------------------------------------------------------------------
+def clear_results():
+    """Clears the processed UI state when a new file or input is provided."""
+    st.session_state.processed_df = None
+    st.session_state.shipping_cost = None
+    st.session_state.raw_ai_output = None
+
+if "processed_df" not in st.session_state:
+    st.session_state.processed_df = None
+if "shipping_cost" not in st.session_state:
+    st.session_state.shipping_cost = None
+if "raw_ai_output" not in st.session_state:
+    st.session_state.raw_ai_output = None
+if "pr_mappings" not in st.session_state:
+    st.session_state.pr_mappings = DEFAULT_MAPPINGS.copy()
+if "mapping_version" not in st.session_state:
+    st.session_state.mapping_version = 0
+if "audit_history" not in st.session_state:
+    st.session_state.audit_history = []
+
 def load_pr_mappings() -> dict:
-    """Loads mappings from local pr_mappings.json or falls back to DEFAULT_MAPPINGS."""
     if os.path.exists(MAPPINGS_FILE):
         try:
             with open(MAPPINGS_FILE, "r", encoding="utf-8") as f:
@@ -111,11 +98,10 @@ def load_pr_mappings() -> dict:
             return DEFAULT_MAPPINGS.copy()
     return DEFAULT_MAPPINGS.copy()
 
+if "pr_mappings" not in st.session_state or st.session_state.mapping_version == 0:
+     st.session_state.pr_mappings = load_pr_mappings()
+
 def save_pr_mappings(mappings: dict) -> bool:
-    """
-    Saves mappings directly to GitHub repository via GitHub API if secrets are present.
-    Also syncs to local pr_mappings.json on disk.
-    """
     try:
         with open(MAPPINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(mappings, f, indent=4)
@@ -160,48 +146,25 @@ def save_pr_mappings(mappings: dict) -> bool:
         if put_res.status_code in [200, 201]:
             return True
         else:
-            error_details = put_res.json().get("message", "Unknown error")
-            st.error(f"GitHub API Error ({put_res.status_code}): {error_details}")
+            st.error(f"GitHub API Error ({put_res.status_code}): {put_res.json().get('message', 'Unknown error')}")
             return False
-
     except Exception as e:
         st.error(f"Failed to commit changes to GitHub: {e}")
         return False
 
-# Initialize Session States
-if "processed_df" not in st.session_state:
-    st.session_state.processed_df = None
-if "shipping_cost" not in st.session_state:
-    st.session_state.shipping_cost = None
-if "pr_mappings" not in st.session_state:
-    st.session_state.pr_mappings = load_pr_mappings()
-if "mapping_version" not in st.session_state:
-    st.session_state.mapping_version = 0
-if "audit_history" not in st.session_state:
-    st.session_state.audit_history = []
-if "raw_ai_output" not in st.session_state:
-    st.session_state.raw_ai_output = None
-
-# Helper: Load Logo as Base64
-LOGO_PATH = os.path.join(SCRIPT_DIR, "logo.png")
-
-def get_base64_image(image_path: str) -> str:
-    if os.path.exists(image_path):
-        with open(image_path, "rb") as img_file:
-            encoded = base64.b64encode(img_file.read()).decode()
-            return f"data:image/png;base64,{encoded}"
-    return ""
-
-logo_base64 = get_base64_image(LOGO_PATH)
-
 # ---------------------------------------------------------------------------
-# PR Mapping Rules & Combo PR Split Enforcer
+# Core Processing Logic
 # ---------------------------------------------------------------------------
+@retry(
+    stop=stop_after_attempt(3), 
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((google_exceptions.ResourceExhausted, google_exceptions.ServiceUnavailable))
+)
+def call_gemini_with_retry(model, payload, config):
+    """Calls Gemini API with exponential backoff for rate limits and server errors."""
+    return model.generate_content(payload, generation_config=config)
+
 def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    If the PR contains '670-2/3', splits the line item into two separate rows:
-    e.g., Line 1 becomes 1A (670-2) and 1B (670-3), with Qty and Amount divided equally.
-    """
     if df is None or df.empty:
         return df
 
@@ -217,27 +180,18 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
                 break
 
         if matched_pattern:
-            try:
-                qty_val = float(row.get("Qty", 1))
-            except (ValueError, TypeError):
-                qty_val = 1.0
-
-            try:
-                cost_val = float(row.get("Cost Price", 0.0))
-            except (ValueError, TypeError):
-                cost_val = 0.0
+            qty_val = float(row.get("Qty", 1.0))
+            cost_val = float(row.get("Cost Price", 0.0))
 
             split_qty = qty_val / 2.0
             if split_qty.is_integer():
                 split_qty = int(split_qty)
 
             split_amount = round(float(split_qty) * cost_val, 2)
-
             line_base = str(row.get("Line Item", orig_idx + 1))
             clean_digits = "".join(c for c in line_base if c.isdigit())
             base_number = clean_digits if clean_digits else str(orig_idx + 1)
 
-            # Row A: 670-2
             row_a = row.copy()
             row_a["Line Item"] = f"{base_number}A"
             row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
@@ -245,7 +199,6 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
             row_a["Amount"] = split_amount
             new_rows.append(row_a)
 
-            # Row B: 670-3
             row_b = row.copy()
             row_b["Line Item"] = f"{base_number}B"
             row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
@@ -258,7 +211,6 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(new_rows).reset_index(drop=True)
 
 def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
-    """Enforces WBS and Customer/Project mappings using Substring Matching Priority."""
     if df is None or df.empty or "PR #" not in df.columns:
         return df
 
@@ -277,7 +229,6 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     return df
 
 def generate_mapping_prompt_rules(mappings: dict) -> str:
-    """Generates prompt instructions dynamically based on active mappings."""
     rules = ["Mappings for PR #:"]
     for key, mapping in mappings.items():
         rules.append(f'  * {key} -> Customer/Project: "{mapping["Customer/Project"]}", Custom WBS Task: "{mapping["Custom WBS Task"]}"')
@@ -286,7 +237,6 @@ def generate_mapping_prompt_rules(mappings: dict) -> str:
     return "\n".join(rules)
 
 def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Prevents CSV formula injection by prepending a space to problematic text."""
     if df is None or df.empty:
         return df
         
@@ -302,8 +252,15 @@ def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     else:
         return df.applymap(sanitize_cell)
 
+def get_base64_image(image_path: str) -> str:
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as img_file:
+            encoded = base64.b64encode(img_file.read()).decode()
+            return f"data:image/png;base64,{encoded}"
+    return ""
+
 # ---------------------------------------------------------------------------
-# Custom CSS for Title Banner
+# UI Construction
 # ---------------------------------------------------------------------------
 st.markdown(
     """
@@ -339,10 +296,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------------------------
-# Header & Instructions
-# ---------------------------------------------------------------------------
-logo_html = f'<img class="header-logo" src="{logo_base64}" alt="Logo">' if logo_base64 else ""
+logo_html = f'<img class="header-logo" src="{get_base64_image(os.path.join(SCRIPT_DIR, "logo.png"))}" alt="Logo">'
 
 st.markdown(
     f"""
@@ -364,11 +318,7 @@ st.info("""
 3. Click the big blue **"Process Order & Generate CSV"** button.
 """)
 
-# ---------------------------------------------------------------------------
-# Secure API Key Check
-# ---------------------------------------------------------------------------
 api_key = st.secrets.get("GEMINI_API_KEY")
-
 if not api_key:
     st.error("⚠️ System Configuration Missing: API Key was not found in Streamlit Secrets.")
     st.stop()
@@ -376,10 +326,7 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ---------------------------------------------------------------------------
-# Main Configuration (Replaced Sidebar)
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Main Configuration (Replaced Sidebar)
+# Main Configuration
 # ---------------------------------------------------------------------------
 with st.expander("⚙️ Configuration & Settings", expanded=False):
     tab1, tab2 = st.tabs(["📝 Special Instructions", "🛠️ Manage Mappings"])
@@ -390,6 +337,7 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
             "Additional rules for this order:",
             placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
             height=80,
+            on_change=clear_results
         )
         
     with tab2:
@@ -437,8 +385,8 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
 # ---------------------------------------------------------------------------
 with st.container(border=True):
     st.subheader("Step 1: Enter PO Details")
-    po_number = st.text_input("PO Number (Optional)", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import or leave blank.")
-    expected_date = st.date_input("Expected Date (Optional)", value=None, help="Select the expected date for all items or leave blank.")
+    po_number = st.text_input("PO Number (Optional)", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import or leave blank.", on_change=clear_results)
+    expected_date = st.date_input("Expected Date (Optional)", value=None, help="Select the expected date for all items or leave blank.", on_change=clear_results)
 
 uploaded_file_obj = None
 text_input = ""
@@ -449,17 +397,19 @@ with st.container(border=True):
     input_type = st.radio(
         "Choose how you want to provide order details:",
         ["📁 Upload File (PDF, Image, Excel, CSV)", "📋 Copy & Paste Order Text"],
-        horizontal=True
+        horizontal=True,
+        on_change=clear_results
     )
     
     if input_type == "📁 Upload File (PDF, Image, Excel, CSV)":
         uploaded_file_obj = st.file_uploader(
             "Upload file", 
             type=["pdf", "png", "jpg", "jpeg", "xlsx", "xls", "csv"],
-            help="Supports PDF invoices, screenshots/images, and quote spreadsheets."
+            help="Supports PDF invoices, screenshots/images, and quote spreadsheets.",
+            on_change=clear_results
         )
     else:
-        text_input = st.text_area("Paste order details here:", height=180, placeholder="Paste raw order text or copy-pasted invoice content here...")
+        text_input = st.text_area("Paste order details here:", height=180, placeholder="Paste raw order text or copy-pasted invoice content here...", on_change=clear_results)
 
 st.write("")
 col_process, col_debug = st.columns([3, 1])
@@ -469,12 +419,10 @@ with col_debug:
     debug_mode = st.toggle("🐞 Debug Mode", help="Show raw JSON output from the AI")
 
 # ---------------------------------------------------------------------------
-# Processing Action
+# Processing Execution
 # ---------------------------------------------------------------------------
 if process_clicked:
-    st.session_state.processed_df = None
-    st.session_state.shipping_cost = None
-    st.session_state.raw_ai_output = None
+    clear_results()
     
     if input_type == "📁 Upload File (PDF, Image, Excel, CSV)" and not uploaded_file_obj:
         st.warning("⚠️ Please upload a file in Step 2.")
@@ -486,7 +434,6 @@ if process_clicked:
             "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them."
         ]
         
-        # Ensure we capture custom instructions safely
         try:
             if custom_instructions_input.strip():
                 instructions_list.append(custom_instructions_input.strip())
@@ -556,6 +503,11 @@ if process_clicked:
                 file_source_name = "Pasted Text"
                 
                 if input_type == "📁 Upload File (PDF, Image, Excel, CSV)" and uploaded_file_obj:
+                    # Validate File Size (Max 10MB)
+                    if uploaded_file_obj.size > 10 * 1024 * 1024:
+                        st.error("⚠️ File size exceeds the 10MB limit. Please compress the file and try again.")
+                        st.stop()
+
                     file_source_name = uploaded_file_obj.name
                     file_ext = os.path.splitext(uploaded_file_obj.name)[1].lower()
                     file_bytes = uploaded_file_obj.getvalue()
@@ -566,15 +518,26 @@ if process_clicked:
                         mime = "image/png" if file_ext == ".png" else "image/jpeg"
                         content_payload = [prompt, {"mime_type": mime, "data": file_bytes}]
                     elif file_ext == ".csv":
-                        csv_df = pd.read_csv(io.BytesIO(file_bytes))
-                        content_payload = [f"{prompt}\n\nDocument Content (CSV Table):\n{csv_df.to_csv(index=False)}"]
+                        try:
+                            csv_df = pd.read_csv(io.BytesIO(file_bytes))
+                            content_payload = [f"{prompt}\n\nDocument Content (CSV Table):\n{csv_df.to_csv(index=False)}"]
+                        except pd.errors.EmptyDataError:
+                            st.error("⚠️ The uploaded CSV file is empty.")
+                            st.stop()
+                        except Exception:
+                            st.error("⚠️ Failed to read the CSV file. It may be corrupted.")
+                            st.stop()
                     elif file_ext in [".xlsx", ".xls"]:
-                        xls = pd.ExcelFile(io.BytesIO(file_bytes))
-                        sheets_text = []
-                        for s_name in xls.sheet_names:
-                            s_df = pd.read_excel(xls, sheet_name=s_name)
-                            sheets_text.append(f"--- Sheet: {s_name} ---\n{s_df.to_csv(index=False)}")
-                        content_payload = [f"{prompt}\n\nDocument Content (Spreadsheet):\n" + "\n\n".join(sheets_text)]
+                        try:
+                            xls = pd.ExcelFile(io.BytesIO(file_bytes))
+                            sheets_text = []
+                            for s_name in xls.sheet_names:
+                                s_df = pd.read_excel(xls, sheet_name=s_name)
+                                sheets_text.append(f"--- Sheet: {s_name} ---\n{s_df.to_csv(index=False)}")
+                            content_payload = [f"{prompt}\n\nDocument Content (Spreadsheet):\n" + "\n\n".join(sheets_text)]
+                        except Exception:
+                            st.error("⚠️ Failed to read the Excel file. It may be corrupted or password protected.")
+                            st.stop()
                 else:
                     content_payload = [f"{prompt}\n\nOrder Info:\n{text_input}"]
 
@@ -585,13 +548,13 @@ if process_clicked:
                 ]
                 
                 response = None
-                
                 for attempt, model_name in enumerate(models_to_try):
                     try:
                         model = genai.GenerativeModel(model_name)
-                        response = model.generate_content(
+                        response = call_gemini_with_retry(
+                            model,
                             content_payload, 
-                            generation_config={
+                            config={
                                 "temperature": 0.1,
                                 "response_mime_type": "application/json",
                                 "response_schema": extraction_schema
@@ -608,31 +571,44 @@ if process_clicked:
                         else:
                             raise api_error
 
+                # Validate Output with Pydantic
                 parsed_data = json.loads(response.text)
-                st.session_state.raw_ai_output = parsed_data # Save for Debug Mode
+                st.session_state.raw_ai_output = parsed_data
                 
-                items_data = parsed_data.get("items", [])
-                extracted_shipping = parsed_data.get("shipping_cost", None)
+                try:
+                    validated_data = OrderOutput(**parsed_data)
+                    if hasattr(validated_data, "model_dump"):
+                        items_data = [item.model_dump(by_alias=True) for item in validated_data.items]
+                    else:
+                        items_data = [item.dict(by_alias=True) for item in validated_data.items]
+                    extracted_shipping = validated_data.shipping_cost
+                except ValidationError as v_err:
+                    st.error("⚠️ The AI returned improperly formatted data. Please click Process again.")
+                    with st.expander("Show Validation Error Details"):
+                        st.error(str(v_err))
+                    st.stop()
 
                 df = pd.DataFrame(items_data)
 
                 if expected_date:
                     df["Expected Date"] = expected_date.strftime("%m/%d/%Y")
+                    
+                # Robust Pandas Type Casting for Calculations
+                if not df.empty:
+                    if "Qty" in df.columns:
+                        df["Qty"] = pd.to_numeric(df["Qty"], errors="coerce").fillna(1.0)
+                    if "Cost Price" in df.columns:
+                        df["Cost Price"] = pd.to_numeric(df["Cost Price"], errors="coerce").fillna(0.0)
 
-                # Step 1: Enforce combo line item split (670-2/3 -> 1A/1B)
                 df = split_combo_pr_rows(df)
-
-                # Step 2: Apply WBS & Project mappings
                 df = apply_pr_mappings(df, st.session_state.pr_mappings)
-
-                # Step 3: Sanitize dataframe to prevent formula injection
                 df = sanitize_dataframe(df)
 
                 st.session_state.processed_df = df
                 st.session_state.shipping_cost = extracted_shipping
 
                 try:
-                    total_order_val = (df["Qty"].astype(float) * df["Cost Price"].astype(float)).sum()
+                    total_order_val = (df["Qty"] * df["Cost Price"]).sum() if not df.empty else 0.0
                 except Exception:
                     total_order_val = 0.0
 
@@ -648,7 +624,6 @@ if process_clicked:
                 st.session_state.audit_history.insert(0, audit_entry)
 
                 st.toast("Order successfully processed!", icon="✅")
-                
                 if attempt > 0:
                     st.toast(f"Notice: A backup AI model ({model_name}) was used.", icon="⚠️")
 
@@ -656,17 +631,15 @@ if process_clicked:
                 st.error("⚠️ The system had trouble formatting the output. Please click 'Process Order' once more.")
             except Exception as e:
                 error_msg = str(e).lower()
-                if any(keyword in error_msg for keyword in ["rate limits exhausted", "429", "quota", "rate limit"]):
+                if any(keyword in error_msg for keyword in ["rate limits exhausted", "429", "quota", "rate limit", "resourceexhausted"]):
                     st.error("⏳ Server busy. Please wait 1 minute and try again.")
                 else:
                     st.error(f"⚠️ Error: {str(e)}")
 
 # ---------------------------------------------------------------------------
-# Results Display (Editable & Stateful)
+# Results Display
 # ---------------------------------------------------------------------------
 if st.session_state.processed_df is not None:
-    
-    # 🐞 Debug Output Visibility Check
     if debug_mode and st.session_state.raw_ai_output:
         with st.expander("🐞 Debug Mode: Raw AI API Output", expanded=True):
             st.json(st.session_state.raw_ai_output)
@@ -679,7 +652,8 @@ if st.session_state.processed_df is not None:
         st.metric(label="Total Line Items", value=len(st.session_state.processed_df))
     with col2:
         try:
-            total_val = (st.session_state.processed_df["Qty"].astype(float) * st.session_state.processed_df["Cost Price"].astype(float)).sum()
+            total_val = (pd.to_numeric(st.session_state.processed_df["Qty"], errors="coerce").fillna(0) * 
+                         pd.to_numeric(st.session_state.processed_df["Cost Price"], errors="coerce").fillna(0)).sum()
             st.metric(label="Total Order Value", value=f"${total_val:,.2f}")
         except Exception:
             st.metric(label="Total Order Value", value="N/A")
@@ -725,13 +699,10 @@ if st.session_state.processed_df is not None:
 
     final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
     final_export_df = sanitize_dataframe(final_export_df)
-    
-    # Remove Confidence Score before downloading
     final_export_df = final_export_df.drop(columns=["Confidence Score"], errors="ignore")
 
     csv_buffer = io.BytesIO()
     final_export_df.to_csv(csv_buffer, index=False)
-
     file_prefix = po_number.strip() if po_number.strip() else "Order"
     
     col_dl, col_reset = st.columns([2, 1])
@@ -745,13 +716,11 @@ if st.session_state.processed_df is not None:
         )
     with col_reset:
         if st.button("🔄 Start Next Order", use_container_width=True):
-            st.session_state.processed_df = None
-            st.session_state.shipping_cost = None
-            st.session_state.raw_ai_output = None
+            clear_results()
             st.rerun()
 
 # ---------------------------------------------------------------------------
-# Session Audit Log & History
+# Session Audit Log
 # ---------------------------------------------------------------------------
 if st.session_state.audit_history:
     with st.expander("📜 Session Audit Log & History"):
