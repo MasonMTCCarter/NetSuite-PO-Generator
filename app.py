@@ -358,8 +358,8 @@ st.markdown(
 )
 
 st.info("""
-👉 **How to use:**
-1. Type in your **PO Number** below.
+**How to use:**
+1. Type in your **PO Number** below (optional).
 2. Upload a **Document (PDF, Image, Excel, CSV)** or paste order text.
 3. Click the big blue **"Process Order & Generate CSV"** button.
 """)
@@ -433,15 +433,15 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
 # UI Inputs
 # ---------------------------------------------------------------------------
 with st.container(border=True):
-    st.subheader("1️⃣ Step 1: Enter PO Details")
-    po_number = st.text_input("PO Number", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import.")
-    expected_date = st.date_input("Expected Date", help="Select the expected date for all items.")
+    st.subheader("Step 1: Enter PO Details")
+    po_number = st.text_input("PO Number (Optional)", placeholder="Example: PO1536", help="Enter the Purchase Order number for this import or leave blank.")
+    expected_date = st.date_input("Expected Date (Optional)", value=None, help="Select the expected date for all items or leave blank.")
 
 uploaded_file_obj = None
 text_input = ""
 
 with st.container(border=True):
-    st.subheader("2️⃣ Step 2: Provide Order Info")
+    st.subheader("Step 2: Provide Order Info")
     
     input_type = st.radio(
         "Choose how you want to provide order details:",
@@ -473,9 +473,7 @@ if process_clicked:
     st.session_state.shipping_cost = None
     st.session_state.raw_ai_output = None
     
-    if not po_number.strip():
-        st.warning("⚠️ Please fill in the PO Number before continuing.")
-    elif input_type == "📁 Upload File (PDF, Image, Excel, CSV)" and not uploaded_file_obj:
+    if input_type == "📁 Upload File (PDF, Image, Excel, CSV)" and not uploaded_file_obj:
         st.warning("⚠️ Please upload a file in Step 2.")
     elif input_type == "📋 Copy & Paste Order Text" and not text_input.strip():
         st.warning("⚠️ Please paste the order text in Step 2.")
@@ -494,6 +492,7 @@ if process_clicked:
 
         full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list)
         mapping_rules_text = generate_mapping_prompt_rules(st.session_state.pr_mappings)
+        po_instruction = f"- PO Number to use for all items: {po_number}" if po_number.strip() else "- PO Number: Leave blank unless explicitly found in the document."
 
         with st.spinner("⏳ Analyzing order details... This usually takes about 30 seconds to 2 minutes."):
             try:
@@ -502,7 +501,7 @@ if process_clicked:
                 Extract line items and shipping cost from the provided document/text and output structured data.
 
                 Context & Rules:
-                - PO Number to use for all items: {po_number}
+                {po_instruction}
                 - Custom Instructions:
                 {full_custom_instructions}
                 {mapping_rules_text}
@@ -636,7 +635,7 @@ if process_clicked:
 
                 audit_entry = {
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "PO Number": po_number,
+                    "PO Number": po_number if po_number.strip() else "None",
                     "Source": file_source_name,
                     "Line Items": len(df),
                     "Order Total ($)": round(float(total_order_val), 2),
@@ -670,7 +669,7 @@ if st.session_state.processed_df is not None:
             st.json(st.session_state.raw_ai_output)
 
     st.markdown("---")
-    st.subheader("3️⃣ Step 3: Review & Download")
+    st.subheader("Step 3: Review & Download")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -730,12 +729,14 @@ if st.session_state.processed_df is not None:
     csv_buffer = io.BytesIO()
     final_export_df.to_csv(csv_buffer, index=False)
 
+    file_prefix = po_number.strip() if po_number.strip() else "Order"
+    
     col_dl, col_reset = st.columns([2, 1])
     with col_dl:
         st.download_button(
             label="📥 Download NetSuite CSV File",
             data=csv_buffer.getvalue(),
-            file_name=f"{po_number}_NetSuite_Import.csv",
+            file_name=f"{file_prefix}_NetSuite_Import.csv",
             mime="text/csv",
             use_container_width=True
         )
