@@ -65,6 +65,13 @@ class OrderOutput(BaseModel):
     shipping_cost: Optional[float] = None
     items: List[LineItem] = []
 
+class QuickEditCommand(BaseModel):
+    target_column: str = Field(description="The exact column to modify (e.g. Qty, Cost Price)")
+    filter_column: str = Field(description="The exact column to check for the condition")
+    search_keyword: str = Field(description="The text to look for. Use 'ALL' if applying to every row")
+    new_value: str = Field(description="The new value to insert")
+    exact_match: bool = Field(description="True if it must match perfectly, False if substring search")
+
 # ---------------------------------------------------------------------------
 # State Management & Helpers
 # ---------------------------------------------------------------------------
@@ -150,6 +157,63 @@ def save_pr_mappings(mappings: dict) -> bool:
             return False
     except Exception as e:
         st.error(f"Failed to commit changes to GitHub: {e}")
+        return False
+
+def append_audit_log_to_github(new_entry: dict) -> bool:
+    """Appends an audit entry to the persistent JSON file on GitHub."""
+    token = st.secrets.get("GITHUB_TOKEN")
+    repo = st.secrets.get("GITHUB_REPO")
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    file_path = "audit_log.json"
+
+    if not token or not repo:
+        return False
+
+    url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    try:
+        sha = None
+        current_log = []
+        
+        # 1. Fetch current file
+        get_res = requests.get(url, headers=headers, params={"ref": branch})
+        if get_res.status_code == 200:
+            data = get_res.json()
+            sha = data.get("sha")
+            content_b64 = data.get("content")
+            if content_b64:
+                try:
+                    decoded_content = base64.b64decode(content_b64).decode("utf-8")
+                    current_log = json.loads(decoded_content)
+                    if not isinstance(current_log, list):
+                        current_log = []
+                except Exception:
+                    current_log = []
+        
+        # 2. Append new entry
+        current_log.insert(0, new_entry)
+
+        # 3. Push back to GitHub
+        content_str = json.dumps(current_log, indent=4)
+        new_content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
+
+        payload = {
+            "message": f"Audit Log Entry: Processed order via NetSuite App",
+            "content": new_content_b64,
+            "branch": branch,
+        }
+        if sha:
+            payload["sha"] = sha
+
+        put_res = requests.put(url, headers=headers, json=payload)
+        return put_res.status_code in [200, 201]
+    except Exception as e:
+        st.error(f"Failed to sync audit log to GitHub: {e}")
         return False
 
 # ---------------------------------------------------------------------------
@@ -280,11 +344,13 @@ st.markdown(
             font-size: 26px;
             font-weight: 700;
             margin: 0;
+            color: #000000;
         }
         .win11-titlebar p {
             margin: 4px 0 0 0;
             font-size: 16px;
             opacity: 0.8;
+            color: #000000;
         }
         .win11-titlebar .header-logo {
             height: 56px;
@@ -503,7 +569,6 @@ if process_clicked:
                 file_source_name = "Pasted Text"
                 
                 if input_type == "📁 Upload File (PDF, Image, Excel, CSV)" and uploaded_file_obj:
-                    # Validate File Size (Max 10MB)
                     if uploaded_file_obj.size > 10 * 1024 * 1024:
                         st.error("⚠️ File size exceeds the 10MB limit. Please compress the file and try again.")
                         st.stop()
@@ -529,7 +594,6 @@ if process_clicked:
                             st.stop()
                     elif file_ext in [".xlsx", ".xls"]:
                         try:
-                            # Try to infer engine automatically (xlrd for .xls, openpyxl for .xlsx)
                             xls = pd.ExcelFile(io.BytesIO(file_bytes))
                             sheets_text = []
                             for s_name in xls.sheet_names:
@@ -537,13 +601,11 @@ if process_clicked:
                                 sheets_text.append(f"--- Sheet: {s_name} ---\n{s_df.to_csv(index=False)}")
                             content_payload = [f"{prompt}\n\nDocument Content (Spreadsheet):\n" + "\n\n".join(sheets_text)]
                         except Exception as e:
-                            # Fallback: Sometimes automated .xls files are actually HTML tables in disguise
                             try:
                                 html_dfs = pd.read_html(io.BytesIO(file_bytes))
                                 sheets_text = [f"--- Table {i} ---\n{df.to_csv(index=False)}" for i, df in enumerate(html_dfs)]
                                 content_payload = [f"{prompt}\n\nDocument Content (Extracted Tables):\n" + "\n\n".join(sheets_text)]
                             except Exception:
-                                # If all fail, display the *actual* error message from Pandas
                                 st.error(f"⚠️ Failed to read the Excel file. Error details: {str(e)}")
                                 st.info("💡 Tip: If the error mentions 'xlrd', ensure it is installed in your requirements.txt.")
                                 st.stop()
@@ -580,7 +642,6 @@ if process_clicked:
                         else:
                             raise api_error
 
-                # Validate Output with Pydantic
                 parsed_data = json.loads(response.text)
                 st.session_state.raw_ai_output = parsed_data
                 
@@ -610,7 +671,6 @@ if process_clicked:
                 if expected_date:
                     df["Expected Date"] = expected_date.strftime("%m/%d/%Y")
                                     
-                # Robust Pandas Type Casting for Calculations
                 if not df.empty:
                     if "Qty" in df.columns:
                         df["Qty"] = pd.to_numeric(df["Qty"], errors="coerce").fillna(1.0)
@@ -638,7 +698,14 @@ if process_clicked:
                     "Shipping ($)": round(float(extracted_shipping), 2) if extracted_shipping is not None else 0.0,
                     "Model Used": model_name
                 }
+                
+                # Add to local session and try pushing to GitHub
                 st.session_state.audit_history.insert(0, audit_entry)
+                
+                with st.spinner("Syncing to GitHub Audit Log..."):
+                    sync_success = append_audit_log_to_github(audit_entry)
+                    if not sync_success:
+                        st.toast("Saved locally, but failed to sync audit log to GitHub.", icon="⚠️")
 
                 st.toast("Order successfully processed!", icon="✅")
                 if attempt > 0:
@@ -654,7 +721,7 @@ if process_clicked:
                     st.error(f"⚠️ Error: {str(e)}")
 
 # ---------------------------------------------------------------------------
-# Results Display
+# Results Display & Quick Edits
 # ---------------------------------------------------------------------------
 if st.session_state.processed_df is not None:
     if debug_mode and st.session_state.raw_ai_output:
@@ -692,6 +759,84 @@ if st.session_state.processed_df is not None:
             ]
             if not unmapped_rows.empty:
                 st.warning("⚠️ Some PR numbers were not recognized in your mapping database. Please review the Customer/Project and WBS Task for those rows.")
+
+    # -----------------------------------------------------------------------
+    # ✨ AI Quick Edits Feature
+    # -----------------------------------------------------------------------
+    with st.container(border=True):
+        st.markdown("✨ **AI Quick Edits**")
+        st.markdown("Type a natural language command to modify the table below (e.g., *'Change Qty to 5 for all items containing Widget'*).")
+        
+        with st.form("quick_edit_form", clear_on_submit=True):
+            col_input, col_submit = st.columns([4, 1])
+            with col_input:
+                edit_prompt = st.text_input("Edit command:", placeholder="e.g., Set Cost Price to 0 for Line Item 1B", label_visibility="collapsed")
+            with col_submit:
+                submit_edit = st.form_submit_button("Apply Edit", type="secondary", use_container_width=True)
+
+        if submit_edit and edit_prompt:
+            with st.spinner("Executing command..."):
+                try:
+                    cols_context = ", ".join(st.session_state.processed_df.columns)
+                    prompt = f"""
+                    Convert the user's table editing request into a structured JSON command.
+                    Available Columns: {cols_context}
+                    User Request: "{edit_prompt}"
+                    Rules:
+                    - Use 'ALL' for search_keyword if the change applies to the entire table.
+                    - target_column and filter_column MUST match the exact column names available.
+                    - new_value should be the string representation of what needs to be inserted.
+                    """
+                    
+                    quick_edit_schema = {
+                        "type": "OBJECT",
+                        "properties": {
+                            "target_column": {"type": "STRING", "description": "Exact column to modify"},
+                            "filter_column": {"type": "STRING", "description": "Exact column to check condition"},
+                            "search_keyword": {"type": "STRING", "description": "Keyword to look for. Use 'ALL' if applying to all rows"},
+                            "new_value": {"type": "STRING", "description": "New value to insert"},
+                            "exact_match": {"type": "BOOLEAN", "description": "True if exact match, False if substring search"}
+                        },
+                        "required": ["target_column", "filter_column", "search_keyword", "new_value", "exact_match"]
+                    }
+                    
+                    edit_model = genai.GenerativeModel("gemini-3.5-flash")
+                    edit_response = edit_model.generate_content(
+                        prompt,
+                        generation_config={
+                            "temperature": 0.0,
+                            "response_mime_type": "application/json",
+                            "response_schema": quick_edit_schema
+                        }
+                    )
+                    
+                    cmd_data = json.loads(edit_response.text)
+                    cmd = QuickEditCommand(**cmd_data)
+                    
+                    df_ref = st.session_state.processed_df.copy()
+                    
+                    if cmd.target_column in df_ref.columns:
+                        if cmd.search_keyword == "ALL":
+                            df_ref[cmd.target_column] = cmd.new_value
+                        elif cmd.filter_column in df_ref.columns:
+                            if cmd.exact_match:
+                                mask = df_ref[cmd.filter_column].astype(str).str.strip().str.lower() == cmd.search_keyword.strip().lower()
+                            else:
+                                mask = df_ref[cmd.filter_column].astype(str).str.contains(cmd.search_keyword, case=False, na=False)
+                            df_ref.loc[mask, cmd.target_column] = cmd.new_value
+                        
+                        # Recalculate amounts if quantity or cost changed
+                        if cmd.target_column in ["Qty", "Cost Price"]:
+                            df_ref["Qty"] = pd.to_numeric(df_ref["Qty"], errors="coerce").fillna(1.0)
+                            df_ref["Cost Price"] = pd.to_numeric(df_ref["Cost Price"], errors="coerce").fillna(0.0)
+                            df_ref["Amount"] = df_ref["Qty"] * df_ref["Cost Price"]
+
+                        st.session_state.processed_df = df_ref
+                        st.rerun()
+                    else:
+                        st.error(f"⚠️ Could not execute: Column '{cmd.target_column}' not found.")
+                except Exception as e:
+                    st.error(f"⚠️ Failed to apply edit. Please try rewording your prompt. Error: {str(e)}")
 
     with st.container(border=True):
         st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red in the **Confidence Score** column indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
@@ -755,13 +900,13 @@ if st.session_state.audit_history:
         col_hist_dl, col_hist_clear = st.columns([2, 1])
         with col_hist_dl:
             st.download_button(
-                label="📥 Download Audit Log (CSV)",
+                label="📥 Download Local Audit Log (CSV)",
                 data=hist_buffer.getvalue(),
                 file_name=f"Audit_Log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
                 width="stretch"
             )
         with col_hist_clear:
-            if st.button("🗑️ Clear Audit Log", width="stretch"):
+            if st.button("🗑️ Clear Local Audit Log", width="stretch"):
                 st.session_state.audit_history = []
                 st.rerun()
