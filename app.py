@@ -292,7 +292,7 @@ def consolidate_split_items(df: pd.DataFrame) -> pd.DataFrame:
     del agg_dict['Manufacturer Part Number']
     
     # Group by Line Item and Part Number to merge split shipments
-    df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False).agg(agg_dict)
+    df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False, sort=False).agg(agg_dict)
     
     # Restore the original column order
     return df_consolidated[df.columns]
