@@ -352,11 +352,11 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
         edited_mappings_df = st.data_editor(
             mappings_df,
             num_rows="dynamic",
-            width=stretch,
+            use_container_width=True,
             key=f"mappings_editor_{st.session_state.mapping_version}"
         )
         
-        if st.button("💾 Save Changes", type="primary", width=stretch):
+        if st.button("💾 Save Changes", type="primary", use_container_width=True):
             new_mappings = {}
             for _, row in edited_mappings_df.iterrows():
                 kw_raw = row.get("PR Keyword")
@@ -414,7 +414,7 @@ with st.container(border=True):
 st.write("")
 col_process, col_debug = st.columns([3, 1])
 with col_process:
-    process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", width=stretch)
+    process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
 with col_debug:
     debug_mode = st.toggle("🐞 Debug Mode", help="Show raw JSON output from the AI")
 
@@ -715,7 +715,7 @@ if st.session_state.processed_df is not None:
 
         edited_df = st.data_editor(
             styled_df, 
-            width=stretch, 
+            use_container_width=True, 
             num_rows="dynamic",
             hide_index=True,
             disabled=["Confidence Score"] # ⬅️ CRITICAL FIX: Locks the column so Streamlit allows colors to render
@@ -736,10 +736,10 @@ if st.session_state.processed_df is not None:
             data=csv_buffer.getvalue(),
             file_name=f"{file_prefix}_NetSuite_Import.csv",
             mime="text/csv",
-            width=stretch
+            use_container_width=True
         )
     with col_reset:
-        if st.button("🔄 Start Next Order", width=stretch):
+        if st.button("🔄 Start Next Order", use_container_width=True):
             clear_results()
             st.rerun()
 
@@ -750,7 +750,7 @@ if st.session_state.audit_history:
     with st.expander("📜 Session Audit Log & History"):
         st.markdown("Overview of all orders processed during this session:")
         history_df = pd.DataFrame(st.session_state.audit_history)
-        st.dataframe(history_df, width=stretch, hide_index=True)
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
         
         hist_buffer = io.BytesIO()
         history_df.to_csv(hist_buffer, index=False)
@@ -762,9 +762,9 @@ if st.session_state.audit_history:
                 data=hist_buffer.getvalue(),
                 file_name=f"Audit_Log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
-                width=stretch
+                use_container_width=True
             )
         with col_hist_clear:
-            if st.button("🗑️ Clear Audit Log", width=stretch):
+            if st.button("🗑️ Clear Audit Log", use_container_width=True):
                 st.session_state.audit_history = []
                 st.rerun()
