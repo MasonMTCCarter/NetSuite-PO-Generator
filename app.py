@@ -512,6 +512,7 @@ if process_clicked:
                      * Line Item B (e.g. '1B'): PR # with '670-3', half the total quantity (Qty / 2), and half the calculated amount.
                 5. MATH EVALUATION RULE: If any field contains a mathematical expression starting with '=' or containing math (e.g., `=10+20`), evaluate it and output the calculated numerical value.
                 6. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
+                7. EXHAUSTIVE EXTRACTION: You MUST process and extract every single valid line item from the provided text. Do not stop early, do not skip lines, and do not summarize. You must continue extracting items until the very end of the provided order text.
                 """
 
                 extraction_schema = {
