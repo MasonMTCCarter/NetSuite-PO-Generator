@@ -518,7 +518,6 @@ if process_clicked:
     else:
         instructions_list = [
             "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list.",
-            "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them.",
             "Ensure Manufacturer Part Number is used (NOT vendor part numbers).",
             "Exclude 'Form' and 'Vendor' columns."
         ]
@@ -550,14 +549,10 @@ if process_clicked:
                    - Extract and retain the FULL string present in the PR / Job / Order reference line word-for-word.
                    - DO NOT strip out or discard job names, room descriptions, notes, numbers, or prefixes/suffixes.
                    - NEVER infer, guess, or reverse-engineer a PR # based on the Company Name (e.g., "Newton Design, LLC") or the mapping rules. If no explicit Job, Quote, or PR number is written on the line items or header for a project, you MUST leave the PR # field empty.
-                4. COMBO SPLIT RULE (670-2/3):
-                   - If the PR contains '670-2/3', create TWO line items:
-                     * Line Item A (e.g. '1A'): PR # with '670-2', half the total quantity (Qty / 2), and half the calculated amount.
-                     * Line Item B (e.g. '1B'): PR # with '670-3', half the total quantity (Qty / 2), and half the calculated amount.
-                5. MATH EVALUATION RULE: ONLY if the 'Qty', 'Cost Price', or 'Amount' fields contain a mathematical expression (e.g., `=10+20`), evaluate it and output the calculated numerical value. DO NOT evaluate math expressions if they appear in 'Manufacturer Part Number', 'Item Description', or any other text fields.
-                6. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
-                7. EXHAUSTIVE EXTRACTION: You MUST process and extract every single valid line item from the provided text. Do not stop early, do not skip lines, and do not summarize. You must continue extracting items until the very end of the provided order text.
-                8. CONSOLIDATE SPLIT SHIPMENTS: If the exact same item appears multiple times because it was split into multiple shipments at different times (e.g., identical 'Line Item' number and 'Manufacturer Part Number'), you MUST combine them into a single line item. Sum their 'Qty' together and output just one combined row with the total 'Amount'.
+                4. MATH EVALUATION RULE: ONLY if the 'Qty', 'Cost Price', or 'Amount' fields contain a mathematical expression (e.g., `=10+20`), evaluate it and output the calculated numerical value. DO NOT evaluate math expressions if they appear in 'Manufacturer Part Number', 'Item Description', or any other text fields.
+                5. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
+                6. EXHAUSTIVE EXTRACTION: You MUST process and extract every single valid line item from the provided text. Do not stop early, do not skip lines, and do not summarize. You must continue extracting items until the very end of the provided order text.
+                7. CONSOLIDATE SPLIT SHIPMENTS: If the exact same item appears multiple times because it was split into multiple shipments at different times (e.g., identical 'Line Item' number and 'Manufacturer Part Number'), you MUST combine them into a single line item. Sum their 'Qty' together and output just one combined row with the total 'Amount'.
                 """
 
                 extraction_schema = {
