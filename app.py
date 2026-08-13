@@ -529,15 +529,24 @@ if process_clicked:
                             st.stop()
                     elif file_ext in [".xlsx", ".xls"]:
                         try:
+                            # Try to infer engine automatically (xlrd for .xls, openpyxl for .xlsx)
                             xls = pd.ExcelFile(io.BytesIO(file_bytes))
                             sheets_text = []
                             for s_name in xls.sheet_names:
                                 s_df = pd.read_excel(xls, sheet_name=s_name)
                                 sheets_text.append(f"--- Sheet: {s_name} ---\n{s_df.to_csv(index=False)}")
                             content_payload = [f"{prompt}\n\nDocument Content (Spreadsheet):\n" + "\n\n".join(sheets_text)]
-                        except Exception:
-                            st.error("⚠️ Failed to read the Excel file. It may be corrupted or password protected.")
-                            st.stop()
+                        except Exception as e:
+                            # Fallback: Sometimes automated .xls files are actually HTML tables in disguise
+                            try:
+                                html_dfs = pd.read_html(io.BytesIO(file_bytes))
+                                sheets_text = [f"--- Table {i} ---\n{df.to_csv(index=False)}" for i, df in enumerate(html_dfs)]
+                                content_payload = [f"{prompt}\n\nDocument Content (Extracted Tables):\n" + "\n\n".join(sheets_text)]
+                            except Exception:
+                                # If all fail, display the *actual* error message from Pandas
+                                st.error(f"⚠️ Failed to read the Excel file. Error details: {str(e)}")
+                                st.info("💡 Tip: If the error mentions 'xlrd', ensure it is installed in your requirements.txt.")
+                                st.stop()
                 else:
                     content_payload = [f"{prompt}\n\nOrder Info:\n{text_input}"]
 
