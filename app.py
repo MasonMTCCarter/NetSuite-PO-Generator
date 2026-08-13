@@ -686,13 +686,17 @@ if st.session_state.processed_df is not None:
                 st.warning("⚠️ Some PR numbers were not recognized in your mapping database. Please review the Customer/Project and WBS Task for those rows.")
 
     with st.container(border=True):
-        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
+        st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red in the **Confidence Score** column indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
+        
+        # 1. Ensure the column is numeric so the styling doesn't fail on weird edge cases
+        st.session_state.processed_df["Confidence Score"] = pd.to_numeric(st.session_state.processed_df["Confidence Score"], errors="coerce").fillna(1.0)
         
         def style_low_confidence(row):
             try:
                 score = float(row.get("Confidence Score", 1.0))
                 if score < 0.8:
-                    return ['background-color: rgba(255, 99, 71, 0.3)'] * len(row)
+                    # Apply a stronger red highlight
+                    return ['background-color: rgba(255, 99, 71, 0.4)'] * len(row)
             except (ValueError, TypeError):
                 pass
             return [''] * len(row)
@@ -703,7 +707,8 @@ if st.session_state.processed_df is not None:
             styled_df, 
             use_container_width=True, 
             num_rows="dynamic",
-            hide_index=True
+            hide_index=True,
+            disabled=["Confidence Score"] # ⬅️ CRITICAL FIX: Locks the column so Streamlit allows colors to render
         )
 
     final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
