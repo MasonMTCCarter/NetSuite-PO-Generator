@@ -766,7 +766,7 @@ if st.session_state.processed_df is not None:
     # -----------------------------------------------------------------------
     with st.container(border=True):
         st.markdown("✨ **AI Quick Edits**")
-        st.markdown("Type a natural language command to modify the table below (e.g., *'Change Qty to 5 for all items containing Widget'*).")
+        st.markdown("Type a natural language command to modify the table below (e.g., *'Change Qty to 5 for all items containing Widget'* or *'Set WBS to 777'*).")
         
         with st.form("quick_edit_form", clear_on_submit=True):
             col_input, col_submit = st.columns([4, 1])
@@ -783,10 +783,12 @@ if st.session_state.processed_df is not None:
                     Convert the user's table editing request into a structured JSON command.
                     Available Columns: {cols_context}
                     User Request: "{edit_prompt}"
+                    
                     Rules:
                     - Use 'ALL' for search_keyword if the change applies to the entire table.
                     - target_column and filter_column MUST match the exact column names available.
                     - new_value should be the string representation of what needs to be inserted.
+                    - MAPPING OVERRIDE: If the user asks to change the Job, Project, or WBS to a known numerical/alphanumeric code (like 777, 648-1, 1000, etc.), you MUST set the `target_column` to 'PR #'. The backend system will automatically derive the Customer/Project and WBS from the PR #.
                     """
                     
                     quick_edit_schema = {
@@ -831,6 +833,9 @@ if st.session_state.processed_df is not None:
                             df_ref["Qty"] = pd.to_numeric(df_ref["Qty"], errors="coerce").fillna(1.0)
                             df_ref["Cost Price"] = pd.to_numeric(df_ref["Cost Price"], errors="coerce").fillna(0.0)
                             df_ref["Amount"] = df_ref["Qty"] * df_ref["Cost Price"]
+
+                        # ✨ THE FIX: Re-run the mapping rules instantly so the UI updates
+                        df_ref = apply_pr_mappings(df_ref, st.session_state.pr_mappings)
 
                         st.session_state.processed_df = df_ref
                         st.rerun()
