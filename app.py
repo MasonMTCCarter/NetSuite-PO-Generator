@@ -17,7 +17,7 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
-    layout="centered",
+    layout="wide", # ⬅️ Change this from "centered" to "wide"
     page_icon="📋",
 )
 
