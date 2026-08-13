@@ -1,1 +1,11 @@
-[]
+[
+    {
+        "Timestamp": "2026-08-13 18:30:16",
+        "PO Number": "None",
+        "Source": "Est_530_from_Coops_Wholesale_LLC_56364.pdf",
+        "Line Items": 5,
+        "Order Total ($)": 895.82,
+        "Shipping ($)": 0.0,
+        "Model Used": "gemini-3.6-flash"
+    }
+]
