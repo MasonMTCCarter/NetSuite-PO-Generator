@@ -378,10 +378,21 @@ genai.configure(api_key=api_key)
 # ---------------------------------------------------------------------------
 # Main Configuration (Replaced Sidebar)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Main Configuration (Replaced Sidebar)
+# ---------------------------------------------------------------------------
 with st.expander("⚙️ Configuration & Settings", expanded=False):
-    tab1, tab2 = st.tabs(["🛠️ Manage Mappings", "📝 Special Instructions"])
+    tab1, tab2 = st.tabs(["📝 Special Instructions", "🛠️ Manage Mappings"])
     
     with tab1:
+        st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
+        custom_instructions_input = st.text_area(
+            "Additional rules for this order:",
+            placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
+            height=80,
+        )
+        
+    with tab2:
         st.markdown("Add, remove, or edit keyword mappings. Click **Save** to sync with GitHub.")
         
         current_map_data = [
@@ -420,14 +431,6 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
                     st.toast("Mappings updated and synced!", icon="✅")
             else:
                 st.error("⚠️ No valid mapping rows detected to save.")
-                
-    with tab2:
-        st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
-        custom_instructions_input = st.text_area(
-            "Additional rules for this order:",
-            placeholder="e.g. Convert all instances of 777 to 648-2 in PR #",
-            height=80,
-        )
 
 # ---------------------------------------------------------------------------
 # UI Inputs
