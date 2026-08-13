@@ -179,6 +179,8 @@ if "mapping_version" not in st.session_state:
     st.session_state.mapping_version = 0
 if "audit_history" not in st.session_state:
     st.session_state.audit_history = []
+if "raw_ai_output" not in st.session_state:
+    st.session_state.raw_ai_output = None
 
 # Helper: Load Logo as Base64
 LOGO_PATH = os.path.join(SCRIPT_DIR, "logo.png")
@@ -374,12 +376,12 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 # ---------------------------------------------------------------------------
-# Sidebar Settings (Mappings & Custom Instructions)
+# Main Configuration (Replaced Sidebar)
 # ---------------------------------------------------------------------------
-with st.sidebar:
-    st.header("⚙️ Configuration")
+with st.expander("⚙️ Configuration & Settings", expanded=False):
+    tab1, tab2 = st.tabs(["🛠️ Manage Mappings", "📝 Special Instructions"])
     
-    with st.expander("🛠️ Manage Mappings"):
+    with tab1:
         st.markdown("Add, remove, or edit keyword mappings. Click **Save** to sync with GitHub.")
         
         current_map_data = [
@@ -419,7 +421,7 @@ with st.sidebar:
             else:
                 st.error("⚠️ No valid mapping rows detected to save.")
                 
-    with st.expander("📝 Special Instructions"):
+    with tab2:
         st.markdown("💡 *Note: Updating the PR # column will automatically recalculate Customer/Project and WBS Task.*")
         custom_instructions_input = st.text_area(
             "Additional rules for this order:",
@@ -457,7 +459,11 @@ with st.container(border=True):
         text_input = st.text_area("Paste order details here:", height=180, placeholder="Paste raw order text or copy-pasted invoice content here...")
 
 st.write("")
-process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
+col_process, col_debug = st.columns([3, 1])
+with col_process:
+    process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
+with col_debug:
+    debug_mode = st.toggle("🐞 Debug Mode", help="Show raw JSON output from the AI")
 
 # ---------------------------------------------------------------------------
 # Processing Action
@@ -465,6 +471,7 @@ process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary",
 if process_clicked:
     st.session_state.processed_df = None
     st.session_state.shipping_cost = None
+    st.session_state.raw_ai_output = None
     
     if not po_number.strip():
         st.warning("⚠️ Please fill in the PO Number before continuing.")
@@ -478,7 +485,7 @@ if process_clicked:
             "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them."
         ]
         
-        # Ensure we capture custom instructions from sidebar safely
+        # Ensure we capture custom instructions safely
         try:
             if custom_instructions_input.strip():
                 instructions_list.append(custom_instructions_input.strip())
@@ -600,6 +607,8 @@ if process_clicked:
                             raise api_error
 
                 parsed_data = json.loads(response.text)
+                st.session_state.raw_ai_output = parsed_data # Save for Debug Mode
+                
                 items_data = parsed_data.get("items", [])
                 extracted_shipping = parsed_data.get("shipping_cost", None)
 
@@ -654,6 +663,12 @@ if process_clicked:
 # Results Display (Editable & Stateful)
 # ---------------------------------------------------------------------------
 if st.session_state.processed_df is not None:
+    
+    # 🐞 Debug Output Visibility Check
+    if debug_mode and st.session_state.raw_ai_output:
+        with st.expander("🐞 Debug Mode: Raw AI API Output", expanded=True):
+            st.json(st.session_state.raw_ai_output)
+
     st.markdown("---")
     st.subheader("3️⃣ Step 3: Review & Download")
 
@@ -728,6 +743,7 @@ if st.session_state.processed_df is not None:
         if st.button("🔄 Start Next Order", use_container_width=True):
             st.session_state.processed_df = None
             st.session_state.shipping_cost = None
+            st.session_state.raw_ai_output = None
             st.rerun()
 
 # ---------------------------------------------------------------------------
