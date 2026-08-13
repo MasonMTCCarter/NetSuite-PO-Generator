@@ -10,6 +10,7 @@ import io
 import os
 import base64
 import requests
+import re
 from datetime import datetime
 
 # ---------------------------------------------------------------------------
@@ -247,28 +248,31 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
             qty_val = float(row.get("Qty", 1.0))
             cost_val = float(row.get("Cost Price", 0.0))
 
-            split_qty = qty_val / 2.0
-            if split_qty.is_integer():
-                split_qty = int(split_qty)
+            # Only split if quantity is a positive even number (divisible by 2)
+            if qty_val > 0 and qty_val % 2 == 0:
+                split_qty = int(qty_val / 2)
+                split_amount = round(float(split_qty) * cost_val, 2)
+                
+                line_base = str(row.get("Line Item", orig_idx + 1))
+                clean_digits = "".join(c for c in line_base if c.isdigit())
+                base_number = clean_digits if clean_digits else str(orig_idx + 1)
 
-            split_amount = round(float(split_qty) * cost_val, 2)
-            line_base = str(row.get("Line Item", orig_idx + 1))
-            clean_digits = "".join(c for c in line_base if c.isdigit())
-            base_number = clean_digits if clean_digits else str(orig_idx + 1)
+                row_a = row.copy()
+                row_a["Line Item"] = f"{base_number}A"
+                row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
+                row_a["Qty"] = split_qty
+                row_a["Amount"] = split_amount
+                new_rows.append(row_a)
 
-            row_a = row.copy()
-            row_a["Line Item"] = f"{base_number}A"
-            row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
-            row_a["Qty"] = split_qty
-            row_a["Amount"] = split_amount
-            new_rows.append(row_a)
-
-            row_b = row.copy()
-            row_b["Line Item"] = f"{base_number}B"
-            row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
-            row_b["Qty"] = split_qty
-            row_b["Amount"] = split_amount
-            new_rows.append(row_b)
+                row_b = row.copy()
+                row_b["Line Item"] = f"{base_number}B"
+                row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
+                row_b["Qty"] = split_qty
+                row_b["Amount"] = split_amount
+                new_rows.append(row_b)
+            else:
+                # If quantity cannot be split evenly, keep the row intact
+                new_rows.append(row)
         else:
             new_rows.append(row)
 
@@ -291,7 +295,7 @@ def consolidate_split_items(df: pd.DataFrame) -> pd.DataFrame:
     del agg_dict['Line Item']
     del agg_dict['Manufacturer Part Number']
     
-    # Group by Line Item and Part Number to merge split shipments
+    # Group by Line Item and Part Number to merge split shipments, maintaining sort order
     df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False, sort=False).agg(agg_dict)
     
     # Restore the original column order
@@ -307,9 +311,11 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     sorted_keys = sorted(mappings.keys(), key=len, reverse=True)
 
     for idx, row in df.iterrows():
-        pr_val = str(row.get("PR #", "")).lower()
+        pr_val = str(row.get("PR #", ""))
         for key in sorted_keys:
-            if key.lower() in pr_val:
+            # Use regex word boundaries to prevent substring collisions (e.g., matching 1000 in 10004)
+            pattern = r'\b' + re.escape(key) + r'\b'
+            if re.search(pattern, pr_val, re.IGNORECASE):
                 df.at[idx, "Customer/Project"] = mappings[key]["Customer/Project"]
                 df.at[idx, "Custom WBS Task"] = mappings[key]["Custom WBS Task"]
                 break
@@ -548,7 +554,7 @@ if process_clicked:
                    - If the PR contains '670-2/3', create TWO line items:
                      * Line Item A (e.g. '1A'): PR # with '670-2', half the total quantity (Qty / 2), and half the calculated amount.
                      * Line Item B (e.g. '1B'): PR # with '670-3', half the total quantity (Qty / 2), and half the calculated amount.
-                5. MATH EVALUATION RULE: If any field contains a mathematical expression starting with '=' or containing math (e.g., `=10+20`), evaluate it and output the calculated numerical value.
+                5. MATH EVALUATION RULE: ONLY if the 'Qty', 'Cost Price', or 'Amount' fields contain a mathematical expression (e.g., `=10+20`), evaluate it and output the calculated numerical value. DO NOT evaluate math expressions if they appear in 'Manufacturer Part Number', 'Item Description', or any other text fields.
                 6. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
                 7. EXHAUSTIVE EXTRACTION: You MUST process and extract every single valid line item from the provided text. Do not stop early, do not skip lines, and do not summarize. You must continue extracting items until the very end of the provided order text.
                 8. CONSOLIDATE SPLIT SHIPMENTS: If the exact same item appears multiple times because it was split into multiple shipments at different times (e.g., identical 'Line Item' number and 'Manufacturer Part Number'), you MUST combine them into a single line item. Sum their 'Qty' together and output just one combined row with the total 'Amount'.
