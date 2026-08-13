@@ -599,9 +599,18 @@ if process_clicked:
 
                 df = pd.DataFrame(items_data)
 
+                # ⬅️ NEW: Force columns to exist if AI finds 0 items
+                if df.empty:
+                    df = pd.DataFrame(columns=[
+                        "Line Item", "Customer/Project", "Custom WBS Task", "PO", 
+                        "PR #", "Manufacturer Part Number", "Item Description", 
+                        "Qty", "Cost Price", "Amount", "Confidence Score"
+                    ])
+                    st.warning("⚠️ No valid order items could be found in this document.")
+                
                 if expected_date:
                     df["Expected Date"] = expected_date.strftime("%m/%d/%Y")
-                    
+                                    
                 # Robust Pandas Type Casting for Calculations
                 if not df.empty:
                     if "Qty" in df.columns:
@@ -688,8 +697,9 @@ if st.session_state.processed_df is not None:
     with st.container(border=True):
         st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red in the **Confidence Score** column indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
         
-        # 1. Ensure the column is numeric so the styling doesn't fail on weird edge cases
-        st.session_state.processed_df["Confidence Score"] = pd.to_numeric(st.session_state.processed_df["Confidence Score"], errors="coerce").fillna(1.0)
+       # 1. Ensure the column exists and is numeric so the styling doesn't fail on weird edge cases
+        if "Confidence Score" in st.session_state.processed_df.columns:
+            st.session_state.processed_df["Confidence Score"] = pd.to_numeric(st.session_state.processed_df["Confidence Score"], errors="coerce").fillna(1.0)
         
         def style_low_confidence(row):
             try:
