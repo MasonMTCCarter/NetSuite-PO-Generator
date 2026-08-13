@@ -292,13 +292,7 @@ def consolidate_split_items(df: pd.DataFrame) -> pd.DataFrame:
     del agg_dict['Manufacturer Part Number']
     
     # Group by Line Item and Part Number to merge split shipments
-    # Add sort=False to prevent lexicographical mixing of line item numbers
-    df_consolidated = df.groupby(
-        ['Line Item', 'Manufacturer Part Number'], 
-        as_index=False, 
-        sort=False, 
-        dropna=False
-    ).agg(agg_dict)
+    df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False).agg(agg_dict)
     
     # Restore the original column order
     return df_consolidated[df.columns]
@@ -320,14 +314,6 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
                 df.at[idx, "Custom WBS Task"] = mappings[key]["Custom WBS Task"]
                 break
     return df
-
-def generate_mapping_prompt_rules(mappings: dict) -> str:
-    rules = ["Mappings for PR #:"]
-    for key, mapping in mappings.items():
-        rules.append(f'  * {key} -> Customer/Project: "{mapping["Customer/Project"]}", Custom WBS Task: "{mapping["Custom WBS Task"]}"')
-    rules.append("- Ensure Manufacturer Part Number is used (NOT vendor part numbers).")
-    rules.append("- Exclude 'Form' and 'Vendor' columns.")
-    return "\n".join(rules)
 
 def sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
@@ -526,7 +512,9 @@ if process_clicked:
     else:
         instructions_list = [
             "Exclude any freight, shipping, tax, handling, or non-item charge lines from the line items list.",
-            "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them."
+            "If a PR contains '670-2/3', split it into two separate line items (e.g. 1A with PR '670-2' and 1B with PR '670-3'), dividing the original total quantity equally between them.",
+            "Ensure Manufacturer Part Number is used (NOT vendor part numbers).",
+            "Exclude 'Form' and 'Vendor' columns."
         ]
         
         try:
@@ -536,7 +524,6 @@ if process_clicked:
             pass
 
         full_custom_instructions = "\n".join(f"- {inst}" for inst in instructions_list)
-        mapping_rules_text = generate_mapping_prompt_rules(st.session_state.pr_mappings)
         po_instruction = f"- PO Number to use for all items: {po_number}" if po_number.strip() else "- PO Number: Leave blank unless explicitly found in the document."
 
         with st.spinner("⏳ Analyzing order details... This usually takes about 30 seconds to 2 minutes."):
@@ -549,7 +536,6 @@ if process_clicked:
                 {po_instruction}
                 - Custom Instructions:
                 {full_custom_instructions}
-                {mapping_rules_text}
 
                 CRITICAL EXTRACTION RULES:
                 1. TABLE EXCLUSIONS: Always exclude tax, freight, shipping, and handling charge lines from the line items array.
@@ -578,8 +564,6 @@ if process_clicked:
                                 "type": "OBJECT",
                                 "properties": {
                                     "Line Item": {"type": "STRING"},
-                                    "Customer/Project": {"type": "STRING"},
-                                    "Custom WBS Task": {"type": "STRING"},
                                     "PO": {"type": "STRING"},
                                     "PR #": {"type": "STRING"},
                                     "Manufacturer Part Number": {"type": "STRING"},
@@ -900,8 +884,8 @@ if st.session_state.processed_df is not None:
             disabled=["Confidence Score"]
         )
 
-    # Removed apply_pr_mappings here to preserve any manual edits the user made in the data editor above
-    final_export_df = sanitize_dataframe(edited_df)
+    final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
+    final_export_df = sanitize_dataframe(final_export_df)
     final_export_df = final_export_df.drop(columns=["Confidence Score"], errors="ignore")
 
     csv_buffer = io.BytesIO()
