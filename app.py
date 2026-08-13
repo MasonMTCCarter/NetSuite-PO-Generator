@@ -17,7 +17,7 @@ from datetime import datetime
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="NetSuite PO Import Generator",
-    layout="wide", # ⬅️ Change this from "centered" to "wide"
+    layout="wide",
     page_icon="📋",
 )
 
@@ -352,11 +352,11 @@ with st.expander("⚙️ Configuration & Settings", expanded=False):
         edited_mappings_df = st.data_editor(
             mappings_df,
             num_rows="dynamic",
-            use_container_width=True,
+            width="stretch",
             key=f"mappings_editor_{st.session_state.mapping_version}"
         )
         
-        if st.button("💾 Save Changes", type="primary", use_container_width=True):
+        if st.button("💾 Save Changes", type="primary", width="stretch"):
             new_mappings = {}
             for _, row in edited_mappings_df.iterrows():
                 kw_raw = row.get("PR Keyword")
@@ -414,7 +414,7 @@ with st.container(border=True):
 st.write("")
 col_process, col_debug = st.columns([3, 1])
 with col_process:
-    process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", use_container_width=True)
+    process_clicked = st.button("🚀 Process Order & Generate CSV", type="primary", width="stretch")
 with col_debug:
     debug_mode = st.toggle("🐞 Debug Mode", help="Show raw JSON output from the AI")
 
@@ -599,7 +599,6 @@ if process_clicked:
 
                 df = pd.DataFrame(items_data)
 
-                # ⬅️ NEW: Force columns to exist if AI finds 0 items
                 if df.empty:
                     df = pd.DataFrame(columns=[
                         "Line Item", "Customer/Project", "Custom WBS Task", "PO", 
@@ -697,7 +696,6 @@ if st.session_state.processed_df is not None:
     with st.container(border=True):
         st.markdown("💡 **Tip:** You can double-click any cell below to edit values before downloading. Rows highlighted in red in the **Confidence Score** column indicate a low confidence score (< 0.8) from the AI and should be double-checked.")
         
-       # 1. Ensure the column exists and is numeric so the styling doesn't fail on weird edge cases
         if "Confidence Score" in st.session_state.processed_df.columns:
             st.session_state.processed_df["Confidence Score"] = pd.to_numeric(st.session_state.processed_df["Confidence Score"], errors="coerce").fillna(1.0)
         
@@ -705,7 +703,6 @@ if st.session_state.processed_df is not None:
             try:
                 score = float(row.get("Confidence Score", 1.0))
                 if score < 0.8:
-                    # Apply a stronger red highlight
                     return ['background-color: rgba(255, 99, 71, 0.4)'] * len(row)
             except (ValueError, TypeError):
                 pass
@@ -715,10 +712,10 @@ if st.session_state.processed_df is not None:
 
         edited_df = st.data_editor(
             styled_df, 
-            use_container_width=True, 
+            width="stretch", 
             num_rows="dynamic",
             hide_index=True,
-            disabled=["Confidence Score"] # ⬅️ CRITICAL FIX: Locks the column so Streamlit allows colors to render
+            disabled=["Confidence Score"]
         )
 
     final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
@@ -736,10 +733,10 @@ if st.session_state.processed_df is not None:
             data=csv_buffer.getvalue(),
             file_name=f"{file_prefix}_NetSuite_Import.csv",
             mime="text/csv",
-            use_container_width=True
+            width="stretch"
         )
     with col_reset:
-        if st.button("🔄 Start Next Order", use_container_width=True):
+        if st.button("🔄 Start Next Order", width="stretch"):
             clear_results()
             st.rerun()
 
@@ -750,7 +747,7 @@ if st.session_state.audit_history:
     with st.expander("📜 Session Audit Log & History"):
         st.markdown("Overview of all orders processed during this session:")
         history_df = pd.DataFrame(st.session_state.audit_history)
-        st.dataframe(history_df, use_container_width=True, hide_index=True)
+        st.dataframe(history_df, width="stretch", hide_index=True)
         
         hist_buffer = io.BytesIO()
         history_df.to_csv(hist_buffer, index=False)
@@ -762,9 +759,9 @@ if st.session_state.audit_history:
                 data=hist_buffer.getvalue(),
                 file_name=f"Audit_Log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
-                use_container_width=True
+                width="stretch"
             )
         with col_hist_clear:
-            if st.button("🗑️ Clear Audit Log", use_container_width=True):
+            if st.button("🗑️ Clear Audit Log", width="stretch"):
                 st.session_state.audit_history = []
                 st.rerun()
