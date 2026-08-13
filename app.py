@@ -81,6 +81,11 @@ def clear_results():
     st.session_state.processed_df = None
     st.session_state.shipping_cost = None
     st.session_state.raw_ai_output = None
+    st.session_state.indivisible_warnings = False # Add this line
+
+# Also initialize it in your session state checks below that function:
+if "indivisible_warnings" not in st.session_state:
+    st.session_state.indivisible_warnings = False
 
 if "processed_df" not in st.session_state:
     st.session_state.processed_df = None
@@ -249,30 +254,35 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
             cost_val = float(row.get("Cost Price", 0.0))
 
             # Only split if quantity is a positive even number (divisible by 2)
-            if qty_val > 0 and qty_val % 2 == 0:
-                split_qty = int(qty_val / 2)
-                split_amount = round(float(split_qty) * cost_val, 2)
-                
-                line_base = str(row.get("Line Item", orig_idx + 1))
-                clean_digits = "".join(c for c in line_base if c.isdigit())
-                base_number = clean_digits if clean_digits else str(orig_idx + 1)
+                if qty_val > 0 and qty_val % 2 == 0:
+                    split_qty = int(qty_val / 2)
+                    split_amount = round(float(split_qty) * cost_val, 2)
+                    
+                    line_base = str(row.get("Line Item", orig_idx + 1))
+                    clean_digits = "".join(c for c in line_base if c.isdigit())
+                    base_number = clean_digits if clean_digits else str(orig_idx + 1)
 
-                row_a = row.copy()
-                row_a["Line Item"] = f"{base_number}A"
-                row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
-                row_a["Qty"] = split_qty
-                row_a["Amount"] = split_amount
-                new_rows.append(row_a)
+                    row_a = row.copy()
+                    row_a["Line Item"] = f"{base_number}A"
+                    row_a["PR #"] = pr_str.replace(matched_pattern, "670-2")
+                    row_a["Qty"] = split_qty
+                    row_a["Amount"] = split_amount
+                    new_rows.append(row_a)
 
-                row_b = row.copy()
-                row_b["Line Item"] = f"{base_number}B"
-                row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
-                row_b["Qty"] = split_qty
-                row_b["Amount"] = split_amount
-                new_rows.append(row_b)
-            else:
-                # If quantity cannot be split evenly, keep the row intact
-                new_rows.append(row)
+                    row_b = row.copy()
+                    row_b["Line Item"] = f"{base_number}B"
+                    row_b["PR #"] = pr_str.replace(matched_pattern, "670-3")
+                    row_b["Qty"] = split_qty
+                    row_b["Amount"] = split_amount
+                    new_rows.append(row_b)
+                else:
+                    # If quantity cannot be split evenly, keep the row intact but FLAG IT!
+                    st.session_state.indivisible_warnings = True
+                    row_copy = row.copy()
+                    row_copy["Confidence Score"] = 0.0 # Forces row to highlight RED in UI
+                    row_copy["Customer/Project"] = "⚠️ MANUAL SPLIT REQ"
+                    row_copy["Custom WBS Task"] = "⚠️ MANUAL SPLIT REQ"
+                    new_rows.append(row_copy)
         else:
             new_rows.append(row)
 
@@ -311,9 +321,13 @@ def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     sorted_keys = sorted(mappings.keys(), key=len, reverse=True)
 
     for idx, row in df.iterrows():
+        # Prevent mappings from overwriting our manual warning flags
+        if str(row.get("Custom WBS Task", "")).startswith("⚠️"):
+            continue
+            
         pr_val = str(row.get("PR #", ""))
         for key in sorted_keys:
-            # Use regex word boundaries to prevent substring collisions (e.g., matching 1000 in 10004)
+            # Use regex word boundaries to prevent substring collisions
             pattern = r'\b' + re.escape(key) + r'\b'
             if re.search(pattern, pr_val, re.IGNORECASE):
                 df.at[idx, "Customer/Project"] = mappings[key]["Customer/Project"]
@@ -747,6 +761,10 @@ if st.session_state.processed_df is not None:
 
     st.markdown("---")
     st.subheader("Step 3: Review & Download")
+    
+    # Inject the alert here
+    if st.session_state.get("indivisible_warnings", False):
+        st.error("⚠️ **Action Required:** One or more items contained a combo Job string (e.g., 670-2/3) but had an indivisible quantity. These rows have been highlighted in red. Please manually adjust their Customer, WBS, or Quantities in the grid below before downloading.")
 
     col1, col2, col3 = st.columns(3)
     with col1:
