@@ -525,9 +525,10 @@ if process_clicked:
                 CRITICAL EXTRACTION RULES:
                 1. TABLE EXCLUSIONS: Always exclude tax, freight, shipping, and handling charge lines from the line items array.
                 2. SHIPPING EXTRACTION: Extract the separate shipping/freight cost amount (if present) as a float into "shipping_cost". If no shipping cost is present, set "shipping_cost" to null.
-                3. PR # VERBATIM PRESERVATION:
+                3. PR # VERBATIM PRESERVATION & NO GUESSING:
                    - Extract and retain the FULL string present in the PR / Job / Order reference line word-for-word.
                    - DO NOT strip out or discard job names, room descriptions, notes, numbers, or prefixes/suffixes.
+                   - NEVER infer, guess, or reverse-engineer a PR # based on the Company Name (e.g., "Newton Design, LLC") or the mapping rules. If no explicit Job, Quote, or PR number is written on the line items or header for a project, you MUST leave the PR # field empty.
                 4. COMBO SPLIT RULE (670-2/3):
                    - If the PR contains '670-2/3', create TWO line items:
                      * Line Item A (e.g. '1A'): PR # with '670-2', half the total quantity (Qty / 2), and half the calculated amount.
