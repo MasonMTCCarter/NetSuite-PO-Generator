@@ -274,6 +274,29 @@ def split_combo_pr_rows(df: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(new_rows).reset_index(drop=True)
 
+def consolidate_split_items(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
+        
+    # Ensure the required columns exist before attempting to group
+    if "Line Item" not in df.columns or "Manufacturer Part Number" not in df.columns:
+        return df
+        
+    # Define how to aggregate each column: sum for Qty/Amount, take the first instance for everything else
+    agg_dict = {col: 'first' for col in df.columns}
+    agg_dict['Qty'] = 'sum'
+    agg_dict['Amount'] = 'sum'
+    
+    # Remove the grouping keys from the agg_dict
+    del agg_dict['Line Item']
+    del agg_dict['Manufacturer Part Number']
+    
+    # Group by Line Item and Part Number to merge split shipments
+    df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False).agg(agg_dict)
+    
+    # Restore the original column order
+    return df_consolidated[df.columns]
+
 def apply_pr_mappings(df: pd.DataFrame, mappings: dict = None) -> pd.DataFrame:
     if df is None or df.empty or "PR #" not in df.columns:
         return df
@@ -536,6 +559,7 @@ if process_clicked:
                 5. MATH EVALUATION RULE: If any field contains a mathematical expression starting with '=' or containing math (e.g., `=10+20`), evaluate it and output the calculated numerical value.
                 6. CONFIDENCE SCORING: Evaluate how certain you are of the extraction for each row. Provide a "Confidence Score" between 0.0 and 1.0. Assign a score below 0.8 if the item data was difficult to parse, blurry, ambiguous, or required guesswork.
                 7. EXHAUSTIVE EXTRACTION: You MUST process and extract every single valid line item from the provided text. Do not stop early, do not skip lines, and do not summarize. You must continue extracting items until the very end of the provided order text.
+                8. CONSOLIDATE SPLIT SHIPMENTS: If the exact same item appears multiple times because it was split into multiple shipments at different times (e.g., identical 'Line Item' number and 'Manufacturer Part Number'), you MUST combine them into a single line item. Sum their 'Qty' together and output just one combined row with the total 'Amount'.
                 """
 
                 extraction_schema = {
@@ -679,6 +703,7 @@ if process_clicked:
                         df["Cost Price"] = pd.to_numeric(df["Cost Price"], errors="coerce").fillna(0.0)
 
                 df = split_combo_pr_rows(df)
+                df = consolidate_split_items(df)
                 df = apply_pr_mappings(df, st.session_state.pr_mappings)
                 df = sanitize_dataframe(df)
 
