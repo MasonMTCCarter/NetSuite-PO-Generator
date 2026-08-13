@@ -292,7 +292,13 @@ def consolidate_split_items(df: pd.DataFrame) -> pd.DataFrame:
     del agg_dict['Manufacturer Part Number']
     
     # Group by Line Item and Part Number to merge split shipments
-    df_consolidated = df.groupby(['Line Item', 'Manufacturer Part Number'], as_index=False, dropna=False).agg(agg_dict)
+    # Add sort=False to prevent lexicographical mixing of line item numbers
+    df_consolidated = df.groupby(
+        ['Line Item', 'Manufacturer Part Number'], 
+        as_index=False, 
+        sort=False, 
+        dropna=False
+    ).agg(agg_dict)
     
     # Restore the original column order
     return df_consolidated[df.columns]
@@ -894,8 +900,8 @@ if st.session_state.processed_df is not None:
             disabled=["Confidence Score"]
         )
 
-    final_export_df = apply_pr_mappings(edited_df, st.session_state.pr_mappings)
-    final_export_df = sanitize_dataframe(final_export_df)
+    # Removed apply_pr_mappings here to preserve any manual edits the user made in the data editor above
+    final_export_df = sanitize_dataframe(edited_df)
     final_export_df = final_export_df.drop(columns=["Confidence Score"], errors="ignore")
 
     csv_buffer = io.BytesIO()
