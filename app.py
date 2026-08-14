@@ -349,29 +349,29 @@ def get_base64_image(image_path: str) -> str:
 # ---------------------------------------------------------------------------
 st.markdown(
     """
-    <style>
+   <style>
         .win11-titlebar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             padding: 16px 24px;
             margin: -1rem -1rem 1.5rem -1rem;
-            background: #ffffff;
-            border-bottom: 4px solid var(--primary-color, #0051ba);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: #003459; /* Night */
+            border-bottom: 4px solid #73cbf2; /* Sky */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             border-radius: 8px;
         }
         .win11-titlebar h1 {
             font-size: 26px;
             font-weight: 700;
             margin: 0;
-            color: #000000;
+            color: #ffffff; /* Accessible contrast against Night */
         }
         .win11-titlebar p {
             margin: 4px 0 0 0;
             font-size: 16px;
-            opacity: 0.8;
-            color: #000000;
+            opacity: 0.9;
+            color: #dde5ed; /* Steam */
         }
         .win11-titlebar .header-logo {
             height: 56px;
