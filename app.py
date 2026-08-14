@@ -350,6 +350,11 @@ def get_base64_image(image_path: str) -> str:
 st.markdown(
     """
    <style>
+        /* Change the main Streamlit background */
+        .stApp {
+            background-color: #F2F5F8; /* Steam Step 2 */
+        }
+        
         .win11-titlebar {
             display: flex;
             align-items: center;
@@ -365,7 +370,7 @@ st.markdown(
             font-size: 26px;
             font-weight: 700;
             margin: 0;
-            color: #ffffff; /* Accessible contrast against Night */
+            color: #ffffff; 
         }
         .win11-titlebar p {
             margin: 4px 0 0 0;
