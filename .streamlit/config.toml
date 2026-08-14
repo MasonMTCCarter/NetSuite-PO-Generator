@@ -1,7 +1,7 @@
 [theme]
-base="light"
-primaryColor = "#0051ba"
-backgroundColor = "#f4f6f8"
-secondaryBackgroundColor = "#eaf1fb"
-textColor = "#111111"
+base = "dark"
+primaryColor = "#ffc82d" # Jayhawk Yellow for distinct, accessible buttons
+backgroundColor = "#003459" # Night for the main application background
+secondaryBackgroundColor = "#004091" # Kansas Blue Step 3 for input areas and containers
+textColor = "#dde5ed" # Steam for readable text
 font = "sans serif"
