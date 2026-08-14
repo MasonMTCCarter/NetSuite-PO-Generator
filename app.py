@@ -350,33 +350,43 @@ def get_base64_image(image_path: str) -> str:
 st.markdown(
     """
           <style>
-    /* Change the main Streamlit background to TEXT Gray */
+    /* Change the main Streamlit background to a slightly lighter grey */
     .stApp {
-        background-color: #333333; /* TEXT Gray[cite: 1] */
+        background-color: #4a4a4a; 
+    }
+
+    /* Target the bordered containers (Step 1, Step 2, etc.) to make them lighter */
+    [data-testid="stVerticalBlockBorderWrapper"],
+    [data-testid="stForm"] {
+        background-color: #5c5c5c !important; /* Lighter grey for the boxes */
+        border-color: #7e7e7e !important; /* Gray Step 4 for subtle borders[cite: 1] */
+        border-radius: 8px;
     }
     
+    /* Blue, Red, and White Header */
     .win11-titlebar {
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 16px 24px;
         margin: -1rem -1rem 1.5rem -1rem;
-        background: #0051ba; /* Kansas Blue for the header background[cite: 1] */
-        border-bottom: 6px solid #e8000d; /* Crimson for the red accent border[cite: 1] */
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        background: #ffffff; /* White header background */
+        border-top: 6px solid #0051ba; /* Kansas Blue top accent[cite: 1] */
+        border-bottom: 6px solid #e8000d; /* Crimson bottom accent[cite: 1] */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         border-radius: 8px;
     }
     .win11-titlebar h1 {
         font-size: 26px;
         font-weight: 700;
         margin: 0;
-        color: #ffffff; /* White text */
+        color: #0051ba; /* Kansas Blue text[cite: 1] */
     }
     .win11-titlebar p {
         margin: 4px 0 0 0;
         font-size: 16px;
         opacity: 0.9;
-        color: #f1f1f1; /* Gray Step 1 for the subtitle[cite: 1] */
+        color: #333333; /* TEXT Gray for the subtitle[cite: 1] */
     }
     .win11-titlebar .header-logo {
         height: 56px;
