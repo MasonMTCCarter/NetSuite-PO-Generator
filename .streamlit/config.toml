@@ -1,7 +1,7 @@
 [theme]
 base = "dark"
-primaryColor = "#ffc82d" # Jayhawk Yellow for distinct, accessible buttons
-backgroundColor = "#003459" # Night for the main application background
-secondaryBackgroundColor = "#004091" # Kansas Blue Step 3 for input areas and containers
-textColor = "#dde5ed" # Steam for readable text
+primaryColor = "#0051ba" # Kansas Blue for the primary process buttons
+backgroundColor = "#333333" # TEXT Gray for the main dark grey background
+secondaryBackgroundColor = "#333333" # TEXT Gray for input backgrounds to match[cite: 1]
+textColor = "#ffffff" # White text for readability against the dark grey
 font = "sans serif"
