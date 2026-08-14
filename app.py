@@ -349,10 +349,10 @@ def get_base64_image(image_path: str) -> str:
 # ---------------------------------------------------------------------------
 st.markdown(
     """
-   <style>
-        /* Change the main Streamlit background */
+           <style>
+        /* Change the main Streamlit background to Night */
         .stApp {
-            background-color: #F2F5F8; /* Steam Step 2 */
+            background-color: #003459; /* Night[cite: 1] */
         }
         
         .win11-titlebar {
@@ -361,9 +361,9 @@ st.markdown(
             justify-content: space-between;
             padding: 16px 24px;
             margin: -1rem -1rem 1.5rem -1rem;
-            background: #003459; /* Night */
-            border-bottom: 4px solid #73cbf2; /* Sky */
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            background: #003171; /* Kansas Blue Step 4 for subtle contrast against the Night background[cite: 1] */
+            border-bottom: 4px solid #73cbf2; /* Sky[cite: 1, 2] */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             border-radius: 8px;
         }
         .win11-titlebar h1 {
@@ -376,14 +376,14 @@ st.markdown(
             margin: 4px 0 0 0;
             font-size: 16px;
             opacity: 0.9;
-            color: #dde5ed; /* Steam */
+            color: #dde5ed; /* Steam[cite: 1, 2] */
         }
         .win11-titlebar .header-logo {
             height: 56px;
             width: auto;
             object-fit: contain;
         }
-    </style>
+    </style>    
     """,
     unsafe_allow_html=True,
 )
