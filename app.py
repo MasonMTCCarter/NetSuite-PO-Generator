@@ -349,41 +349,41 @@ def get_base64_image(image_path: str) -> str:
 # ---------------------------------------------------------------------------
 st.markdown(
     """
-           <style>
-        /* Change the main Streamlit background to Night */
-        .stApp {
-            background-color: #003459; /* Night[cite: 1] */
-        }
-        
-        .win11-titlebar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 16px 24px;
-            margin: -1rem -1rem 1.5rem -1rem;
-            background: #003171; /* Kansas Blue Step 4 for subtle contrast against the Night background[cite: 1] */
-            border-bottom: 4px solid #73cbf2; /* Sky[cite: 1, 2] */
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border-radius: 8px;
-        }
-        .win11-titlebar h1 {
-            font-size: 26px;
-            font-weight: 700;
-            margin: 0;
-            color: #ffffff; 
-        }
-        .win11-titlebar p {
-            margin: 4px 0 0 0;
-            font-size: 16px;
-            opacity: 0.9;
-            color: #dde5ed; /* Steam[cite: 1, 2] */
-        }
-        .win11-titlebar .header-logo {
-            height: 56px;
-            width: auto;
-            object-fit: contain;
-        }
-    </style>    
+          <style>
+    /* Change the main Streamlit background to TEXT Gray */
+    .stApp {
+        background-color: #333333; /* TEXT Gray[cite: 1] */
+    }
+    
+    .win11-titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        margin: -1rem -1rem 1.5rem -1rem;
+        background: #0051ba; /* Kansas Blue for the header background[cite: 1] */
+        border-bottom: 6px solid #e8000d; /* Crimson for the red accent border[cite: 1] */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        border-radius: 8px;
+    }
+    .win11-titlebar h1 {
+        font-size: 26px;
+        font-weight: 700;
+        margin: 0;
+        color: #ffffff; /* White text */
+    }
+    .win11-titlebar p {
+        margin: 4px 0 0 0;
+        font-size: 16px;
+        opacity: 0.9;
+        color: #f1f1f1; /* Gray Step 1 for the subtitle[cite: 1] */
+    }
+    .win11-titlebar .header-logo {
+        height: 56px;
+        width: auto;
+        object-fit: contain;
+    }
+</style>
     """,
     unsafe_allow_html=True,
 )
