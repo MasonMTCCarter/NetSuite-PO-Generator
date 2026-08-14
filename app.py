@@ -345,10 +345,7 @@ def get_base64_image(image_path: str) -> str:
     return ""
 
 # ---------------------------------------------------------------------------
-# UI Construction
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Theme Toggle & CSS Injection
+# UI Construction & Theme Toggle
 # ---------------------------------------------------------------------------
 # Place the toggle in the top right corner using columns
 theme_col1, theme_col2 = st.columns([9, 1])
@@ -364,8 +361,8 @@ header_css = """
         padding: 16px 24px;
         margin: -1rem -1rem 1.5rem -1rem;
         background: #ffffff; 
-        border-top: 6px solid #0051ba; /* Kansas Blue[cite: 1] */
-        border-bottom: 6px solid #e8000d; /* Crimson[cite: 1] */
+        border-top: 6px solid #0051ba; /* Kansas Blue */
+        border-bottom: 6px solid #e8000d; /* Crimson */
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         border-radius: 8px;
     }
@@ -373,13 +370,13 @@ header_css = """
         font-size: 26px;
         font-weight: 700;
         margin: 0;
-        color: #0051ba; /* Kansas Blue[cite: 1] */
+        color: #0051ba !important; /* Force Kansas Blue */
     }
     .win11-titlebar p {
         margin: 4px 0 0 0;
         font-size: 16px;
         opacity: 0.9;
-        color: #333333; /* TEXT Gray[cite: 1] */
+        color: #333333 !important; /* Force TEXT Gray */
     }
     .win11-titlebar .header-logo {
         height: 56px;
@@ -393,23 +390,48 @@ if dark_mode:
     theme_css = f"""
     <style>
         {header_css}
-        /* Dark Mode Overrides */
+        
+        /* Main background */
         .stApp {{
             background-color: #4a4a4a !important; 
         }}
-        .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp label, .stMarkdown {{
+        
+        /* Make general text white, but EXCLUDE the header text */
+        .stApp p:not(.win11-titlebar p), 
+        .stApp h1:not(.win11-titlebar h1), 
+        .stApp h2, .stApp h3, .stApp label, .stMarkdown {{
             color: #ffffff !important;
         }}
+        
+        /* Step boxes */
         [data-testid="stVerticalBlockBorderWrapper"],
         [data-testid="stForm"] {{
             background-color: #5c5c5c !important; 
-            border-color: #7e7e7e !important; /* Gray Step 4[cite: 1] */
+            border-color: #7e7e7e !important; 
         }}
-        /* Darken text inputs to match the theme */
+        
+        /* Text inputs */
         .stTextInput input, .stTextArea textarea, .stDateInput input {{
-            background-color: #333333 !important; /* TEXT Gray[cite: 1] */
+            background-color: #333333 !important; 
             color: #ffffff !important;
             border-color: #7e7e7e !important;
+        }}
+        
+        /* Fix the "How to use" info box using the Brand's "Night" blue */
+        [data-testid="stAlert"] {{
+            background-color: #003459 !important; 
+            border: none !important;
+        }}
+        [data-testid="stAlert"] * {{
+            color: #ffffff !important;
+        }}
+        
+        /* Fix File Uploader Dropzone */
+        [data-testid="stFileUploaderDropzone"] {{
+            background-color: #333333 !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] * {{
+            color: #ffffff !important;
         }}
     </style>
     """
@@ -417,30 +439,15 @@ else:
     theme_css = f"""
     <style>
         {header_css}
-        /* Light Mode uses config.toml defaults, just styling the main background slightly if needed */
+        /* Light Mode uses config.toml defaults */
         .stApp {{
-            background-color: #f4f6f8 !important; /* Matches config.toml[cite: 3] */
+            background-color: #f4f6f8 !important; 
         }}
     </style>
     """
 
 # Inject the chosen styles
 st.markdown(theme_css, unsafe_allow_html=True)
-
-logo_html = f'<img class="header-logo" src="{get_base64_image(os.path.join(SCRIPT_DIR, "logo.png"))}" alt="Logo">'
-
-st.markdown(
-    f"""
-    <div class="win11-titlebar">
-        <div>
-            <h1>NetSuite Import File Generator</h1>
-            <p>Convert orders, spreadsheets, or invoices into NetSuite CSV format</p>
-        </div>
-        {logo_html}
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
 
 st.info("""
 **How to use:**
