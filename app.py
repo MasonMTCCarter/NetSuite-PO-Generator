@@ -446,8 +446,25 @@ else:
     </style>
     """
 
-# Inject the chosen styles
+# 1. Inject the chosen styles
 st.markdown(theme_css, unsafe_allow_html=True)
+
+# 2. Generate and embed the logo image
+logo_html = f'<img class="header-logo" src="{get_base64_image(os.path.join(SCRIPT_DIR, "logo.png"))}" alt="Logo">'
+
+# 3. Build the custom header HTML
+st.markdown(
+    f"""
+    <div class="win11-titlebar">
+        <div>
+            <h1>NetSuite Import File Generator</h1>
+            <p>Convert orders, spreadsheets, or invoices into NetSuite CSV format</p>
+        </div>
+        {logo_html}
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.info("""
 **How to use:**
