@@ -1,7 +1,7 @@
 [theme]
 base = "dark"
-primaryColor = "#0051ba" # Kansas Blue for the primary process buttons
-backgroundColor = "#333333" # TEXT Gray for the main dark grey background
-secondaryBackgroundColor = "#333333" # TEXT Gray for input backgrounds to match[cite: 1]
-textColor = "#ffffff" # White text for readability against the dark grey
+primaryColor = "#0051ba" # Kansas Blue for the primary buttons
+backgroundColor = "#4a4a4a" # A slightly lighter grey than the previous #333333
+secondaryBackgroundColor = "#5c5c5c" # Lighter grey to help inputs blend with the new boxes
+textColor = "#ffffff"
 font = "sans serif"
