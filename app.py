@@ -25,26 +25,12 @@ st.set_page_config(
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MAPPINGS_FILE = os.path.join(SCRIPT_DIR, "pr_mappings.json")
 
-DEFAULT_MAPPINGS = {
-    "648-1": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-1 Materials"},
-    "648-2": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-2 Materials"},
-    "648-3": {"Customer/Project": "JF Taylor : 648 USAF FA FuTs", "Custom WBS Task": "648-3 Materials"},
-    "670-2": {"Customer/Project": "Lockheed Martin : 670 AFSOC", "Custom WBS Task": "Materials (670-2)"},
-    "670-3": {"Customer/Project": "Lockheed Martin : 670 AFSOC", "Custom WBS Task": "Materials (670-3)"},
-    "611-2": {"Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C", "Custom WBS Task": "611-2 Materials"},
-    "611-5": {"Customer/Project": "Fluor Marine Propulsion, LLC : 611 I&C", "Custom WBS Task": "611-5 Materials"},
-    "1000": {"Customer/Project": "FLETC : Diversified Fabricators & Erectors : 1000 SAACSIM", "Custom WBS Task": "SAACSIM #1-2 Materials"},
-    "1001": {"Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3", "Custom WBS Task": "0014.30.03.80 - Material"},
-    "1002": {"Customer/Project": "Akima/Pinnacle Solutions : 1002 - ACV MTS Production", "Custom WBS Task": "1002.0001.30.03.80 - Material"},
-    "Abrams Hot List": {"Customer/Project": "ADS, Inc : 1001 - M1A2 HOT SEPv3", "Custom WBS Task": "0014.30.03.80 - Material"},
-    "505": {"Customer/Project": "Lockheed Martin : 505 FuT 5", "Custom WBS Task": "Materials"},
-    "506": {"Customer/Project": "Lockheed Martin : 506 FuT 6", "Custom WBS Task": "506 Materials"},
-    "550": {"Customer/Project": "CymSTAR, LLC : 550 C5 FuT", "Custom WBS Task": "Materials"},
-    "627": {"Customer/Project": "CUBIC : 627 Mortar Production", "Custom WBS Task": "Materials"},
-    "724": {"Customer/Project": "Lockheed Martin : 724 -Faceplate Assembly - 543013-103", "Custom WBS Task": "Materials"},
-    "725": {"Customer/Project": "Leidos : 725", "Custom WBS Task": "Materials"},
-    "777": {"Customer/Project": "Newton Design, LLC : 777 Overhead", "Custom WBS Task": "777 Materials"},
-}
+# app.py
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+MAPPINGS_FILE = os.path.join(SCRIPT_DIR, "pr_mappings.json")
+
+# Keep an empty dict as a safe fallback
+DEFAULT_MAPPINGS = {}
 
 # ---------------------------------------------------------------------------
 # Pydantic Schemas for AI Output Validation
@@ -105,11 +91,11 @@ def load_pr_mappings() -> dict:
         try:
             with open(MAPPINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                if isinstance(data, dict) and len(data) > 0:
+                if isinstance(data, dict):
                     return data
         except Exception:
-            return DEFAULT_MAPPINGS.copy()
-    return DEFAULT_MAPPINGS.copy()
+            return {}
+    return {}
 
 if "pr_mappings" not in st.session_state or st.session_state.mapping_version == 0:
      st.session_state.pr_mappings = load_pr_mappings()
