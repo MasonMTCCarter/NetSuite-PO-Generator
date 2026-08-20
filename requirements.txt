@@ -1,6 +1,6 @@
 streamlit
 pandas
 xlrd>=2.0.1
-google-generativeai
+google-genai
 pypdf
 tenacity>=8.2.0
