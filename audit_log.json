@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-08-26 20:22:23",
+        "PO Number": "1",
+        "Source": "Invoice - 18441 - Newton Design, LLC.pdf",
+        "Line Items": 1,
+        "Order Total ($)": 3500.0,
+        "Shipping ($)": 400.0,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-08-26 19:30:31",
         "PO Number": "1",
         "Source": "newton quote 800170.pdf",
