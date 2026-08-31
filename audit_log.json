@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-08-31 18:35:47",
+        "PO Number": "1",
+        "Source": "Document_260831_151935.pdf",
+        "Line Items": 13,
+        "Order Total ($)": 28620.0,
+        "Shipping ($)": 210.0,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-08-31 18:03:48",
         "PO Number": "1",
         "Source": "Document_260831_151935.pdf",
