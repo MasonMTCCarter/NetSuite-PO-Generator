@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-09-03 13:37:58",
+        "PO Number": "PO1824",
+        "Source": "Confirmation for Your Order PO1824.PDF",
+        "Line Items": 7,
+        "Order Total ($)": 105.45,
+        "Shipping ($)": 30.62,
+        "Model Used": "gemini-3.5-flash"
+    },
+    {
         "Timestamp": "2026-09-03 12:45:24",
         "PO Number": "PO1822",
         "Source": "PO1822_NetSuite_Import.csv",
