@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-09-10 12:05:11",
+        "PO Number": "PO1886",
+        "Source": "Confirmation for Your Order PO1886.PDF",
+        "Line Items": 12,
+        "Order Total ($)": 476.7,
+        "Shipping ($)": 19.82,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-09-09 20:13:20",
         "PO Number": "1",
         "Source": "151193.pdf",
