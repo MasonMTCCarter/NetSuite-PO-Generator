@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-09-15 12:05:59",
+        "PO Number": "1",
+        "Source": "faxquoteout8863.pdf",
+        "Line Items": 2,
+        "Order Total ($)": 25825.96,
+        "Shipping ($)": 0.0,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-09-15 11:59:57",
         "PO Number": "1",
         "Source": "faxquoteout8863.pdf",
