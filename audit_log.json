@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-09-29 21:09:54",
+        "PO Number": "1",
+        "Source": "Est_552_from_Coops_Wholesale_LLC_15320.pdf",
+        "Line Items": 5,
+        "Order Total ($)": 4514.05,
+        "Shipping ($)": 0.0,
+        "Model Used": "gemini-3.5-flash"
+    },
+    {
         "Timestamp": "2026-09-29 17:27:58",
         "PO Number": "1",
         "Source": "Invoice_1639_from_Egret_Aviation_Americas_LLC.pdf",
