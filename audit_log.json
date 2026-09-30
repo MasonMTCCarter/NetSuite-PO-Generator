@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-09-30 16:00:38",
+        "PO Number": "1",
+        "Source": "QU-248-NewtonDe-09292026063213.pdf",
+        "Line Items": 1,
+        "Order Total ($)": 14500.0,
+        "Shipping ($)": 0.0,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-09-30 15:50:06",
         "PO Number": "PO2125",
         "Source": "Q60527 - Newton Design.pdf",
