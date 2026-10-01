@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-10-01 20:10:52",
+        "PO Number": "1",
+        "Source": "Quote_800394_2026_10_01_14_58_08.pdf",
+        "Line Items": 2,
+        "Order Total ($)": 8855.0,
+        "Shipping ($)": 0.0,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-10-01 18:27:19",
         "PO Number": "1",
         "Source": "Alro_Quote_119288109.pdf",
