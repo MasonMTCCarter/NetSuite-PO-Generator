@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-10-22 13:10:46",
+        "PO Number": "PO2339",
+        "Source": "DK_INVOICE_134855286.pdf",
+        "Line Items": 11,
+        "Order Total ($)": 1132.45,
+        "Shipping ($)": 8.49,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-10-21 12:47:43",
         "PO Number": "PO2338",
         "Source": "Pasted Text",
