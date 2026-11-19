@@ -1,5 +1,14 @@
 [
     {
+        "Timestamp": "2026-11-19 13:22:10",
+        "PO Number": "PO2636",
+        "Source": "Pasted Text",
+        "Line Items": 13,
+        "Order Total ($)": 297.31,
+        "Shipping ($)": 34.59,
+        "Model Used": "gemini-3.6-flash"
+    },
+    {
         "Timestamp": "2026-11-17 21:29:53",
         "PO Number": "PO2625",
         "Source": "Pasted Text",
